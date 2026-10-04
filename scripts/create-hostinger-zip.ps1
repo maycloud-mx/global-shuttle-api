@@ -2,7 +2,7 @@ $ErrorActionPreference = 'Stop'
 
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $deployDirectory = Join-Path $projectRoot 'deploy'
-$archivePath = Join-Path $deployDirectory 'global-shuttle-api-hostinger-runtime-fix.zip'
+$archivePath = Join-Path $deployDirectory 'global-shuttle-api-bootstrap-user.zip'
 $stagingRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("global-shuttle-hostinger-" + [guid]::NewGuid().ToString('N'))
 
 $excludedDirectories = @(

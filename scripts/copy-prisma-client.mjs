@@ -10,5 +10,16 @@ if (!existsSync(source)) {
   );
 }
 
-cpSync(source, destination, { recursive: true, force: true });
-console.log('Prisma Client copied to dist/generated/prisma');
+try {
+  cpSync(source, destination, { recursive: true, force: true });
+  console.log('Prisma Client copied to dist/generated/prisma');
+} catch (error) {
+  const existingClient = resolve(destination, 'index.js');
+  if (error?.code === 'EPERM' && existsSync(existingClient)) {
+    console.warn(
+      'Prisma engine is in use; keeping the existing generated client in dist.',
+    );
+  } else {
+    throw error;
+  }
+}

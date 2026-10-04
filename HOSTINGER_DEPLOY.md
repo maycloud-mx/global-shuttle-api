@@ -6,7 +6,7 @@
 npm run package:hostinger
 ```
 
-El archivo se genera en `deploy/global-shuttle-api-hostinger-runtime-fix.zip`. No contiene
+El archivo se genera en `deploy/global-shuttle-api-bootstrap-user.zip`. No contiene
 `.env`, `.git`, `node_modules`, `dist`, pruebas, cobertura ni configuracion del editor.
 Hostinger instalara las dependencias y compilara el codigo fuente.
 

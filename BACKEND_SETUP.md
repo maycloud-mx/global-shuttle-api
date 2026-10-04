@@ -58,16 +58,16 @@ Las credenciales se guardan en `.env`, nunca en el repositorio.
 ## Autenticacion
 
 Las contrasenas deben almacenarse como hashes bcrypt en `users.password_hash`.
-En desarrollo puedes generar o restablecer el usuario generico con:
+Cuando la tabla de usuarios esta vacia, genera el primer usuario con:
 
 ```http
-POST /api/v1/auth/dev-user
+POST /api/v1/auth/bootstrap-user
 ```
 
-La respuesta contiene el correo, usuario y una nueva `temporaryPassword`. Guarda
-esa contrasena: cada llamada vuelve a generarla e invalida la anterior. El
-endpoint responde `404` cuando `NODE_ENV=production` y el rol `DEMO` se crea sin
-permisos, ya que esta cuenta existe unicamente para probar el inicio de sesion.
+La respuesta contiene el correo, usuario y una `temporaryPassword`. Guardala en
+ese momento porque no vuelve a mostrarse. El endpoint funciona en produccion,
+pero se bloquea con `409 Conflict` tan pronto existe un usuario. El rol `DEMO`
+se crea sin permisos y posteriormente puede configurarse desde la base de datos.
 
 El login acepta correo o nombre de usuario:
 

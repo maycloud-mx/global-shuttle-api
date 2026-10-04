@@ -1,6 +1,6 @@
 import {
+  ConflictException,
   Injectable,
-  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -35,10 +35,12 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  async createDemoUser() {
-    const config = loadEnvironment();
-    if (config.NODE_ENV === 'production') {
-      throw new NotFoundException('Resource not found');
+  async createBootstrapUser() {
+    const userCount = await this.prisma.user.count();
+    if (userCount > 0) {
+      throw new ConflictException(
+        'Bootstrap user cannot be created because a user already exists',
+      );
     }
 
     const temporaryPassword = randomBytes(18).toString('base64url');
@@ -52,21 +54,14 @@ export class AuthService {
         description: 'Development-only login role',
       },
     });
-    const user = await this.prisma.user.upsert({
-      where: { email: 'demo@globalshuttle.local' },
-      update: {
+    const user = await this.prisma.user.create({
+      data: {
         roleId: role.id,
-        username: 'demo',
+        email: 'admin@globalshuttle.local',
+        username: 'admin',
         passwordHash,
-        isActive: true,
-      },
-      create: {
-        roleId: role.id,
-        email: 'demo@globalshuttle.local',
-        username: 'demo',
-        passwordHash,
-        firstName: 'Demo',
-        lastName: 'User',
+        firstName: 'Admin',
+        lastName: 'Global Shuttle',
       },
       select: {
         id: true,
@@ -81,6 +76,7 @@ export class AuthService {
       user,
       temporaryPassword,
       loginEndpoint: '/api/v1/auth/login',
+      warning: 'Save this password now; it will not be shown again',
     };
   }
 
