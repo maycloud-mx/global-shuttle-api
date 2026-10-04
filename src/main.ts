@@ -3,6 +3,8 @@ import { NestFactory } from '@nestjs/core';
 import helmet from 'helmet';
 import { AppModule } from './app.module.js';
 import { loadEnvironment } from './config/environment.js';
+import { ApiExceptionFilter } from './common/http/api-exception.filter.js';
+import { ApiResponseInterceptor } from './common/http/api-response.interceptor.js';
 
 async function bootstrap() {
   const config = loadEnvironment();
@@ -22,6 +24,8 @@ async function bootstrap() {
       whitelist: true,
     }),
   );
+  app.useGlobalFilters(new ApiExceptionFilter());
+  app.useGlobalInterceptors(new ApiResponseInterceptor());
   app.enableShutdownHooks();
 
   await app.listen(port);

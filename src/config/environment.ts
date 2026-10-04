@@ -11,6 +11,8 @@ export interface EnvironmentVariables {
   DB_DATABASE: string;
   DB_USERNAME: string;
   DB_PASSWORD: string;
+  JWT_SECRET: string;
+  JWT_EXPIRES_IN_SECONDS: number;
 }
 
 function requireString(
@@ -65,6 +67,13 @@ export function validateEnvironment(
     throw new Error('DB_PORT must be an integer between 1 and 65535');
   }
 
+  const jwtExpiresInSeconds = Number(
+    environment.JWT_EXPIRES_IN_SECONDS ?? 28_800,
+  );
+  if (!Number.isInteger(jwtExpiresInSeconds) || jwtExpiresInSeconds < 60) {
+    throw new Error('JWT_EXPIRES_IN_SECONDS must be an integer of at least 60');
+  }
+
   return {
     NODE_ENV: nodeEnvironment as NodeEnvironment,
     PORT: port,
@@ -74,6 +83,8 @@ export function validateEnvironment(
     DB_DATABASE: requireString(environment, 'DB_DATABASE'),
     DB_USERNAME: requireString(environment, 'DB_USERNAME'),
     DB_PASSWORD: requireString(environment, 'DB_PASSWORD'),
+    JWT_SECRET: requireString(environment, 'JWT_SECRET'),
+    JWT_EXPIRES_IN_SECONDS: jwtExpiresInSeconds,
   };
 }
 import { loadEnvFile } from 'node:process';
