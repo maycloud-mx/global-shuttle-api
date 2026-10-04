@@ -44,8 +44,12 @@ npm run test:e2e   # pruebas HTTP
 npm run db:generate   # regenera Prisma Client
 npm run db:introspect # importa el esquema de una base existente
 npm run db:migrate    # crea/aplica migraciones en desarrollo
+npm run db:migrate:deploy # aplica migraciones existentes en produccion
 npm run db:studio     # interfaz visual para los datos
+npm run package:hostinger # genera el ZIP de despliegue
 ```
+
+Para desplegar el proyecto mediante ZIP consulta `HOSTINGER_DEPLOY.md`.
 
 `GET /api/v1` comprueba el proceso HTTP y `GET /api/v1/health/database`
 comprueba la conexion MySQL. La integracion usa Prisma con su motor MySQL nativo.

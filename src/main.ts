@@ -3,8 +3,8 @@ import { NestFactory } from '@nestjs/core';
 import helmet from 'helmet';
 import { AppModule } from './app.module.js';
 import { loadEnvironment } from './config/environment.js';
-import { ApiExceptionFilter } from './common/http/api-exception.filter.js';
-import { ApiResponseInterceptor } from './common/http/api-response.interceptor.js';
+import { ApiExceptionFilter } from './http/api-exception.filter.js';
+import { ApiResponseInterceptor } from './http/api-response.interceptor.js';
 
 async function bootstrap() {
   const config = loadEnvironment();
@@ -28,7 +28,13 @@ async function bootstrap() {
   app.useGlobalInterceptors(new ApiResponseInterceptor());
   app.enableShutdownHooks();
 
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
   Logger.log(`API running on http://localhost:${port}/api/v1`, 'Bootstrap');
 }
-await bootstrap();
+void bootstrap().catch((error: unknown) => {
+  Logger.error(
+    error instanceof Error ? error.stack : String(error),
+    'Bootstrap',
+  );
+  process.exitCode = 1;
+});
