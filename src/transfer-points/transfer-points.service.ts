@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '../generated/prisma/index.js';
+import { Prisma, TransferPointType } from '../generated/prisma/index.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { ChangeTransferPointStatusDto } from './dto/change-transfer-point-status.dto.js';
 import type { CreateTransferPointDto } from './dto/create-transfer-point.dto.js';
@@ -97,6 +97,17 @@ export class TransferPointsService {
       throw new NotFoundException('Transfer point not found');
     }
     return transferPoint;
+  }
+
+  async findAirports() {
+    return this.prisma.transferPoint.findMany({
+      where: {
+        type: TransferPointType.AIRPORT,
+        status: true,
+      },
+      include: transferPointInclude,
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+    });
   }
 
   async update(id: number, dto: UpdateTransferPointDto, userId: number) {

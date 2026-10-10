@@ -1,11 +1,16 @@
+import { Type } from 'class-transformer';
 import {
+  ArrayUnique,
+  IsArray,
   IsBoolean,
   IsOptional,
   IsString,
   Matches,
   MaxLength,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
+import { ZoneAirportTimeDto } from './zone-airport-time.dto.js';
 
 export class CreateZoneDto {
   @IsString()
@@ -30,4 +35,11 @@ export class CreateZoneDto {
   @IsString()
   @MaxLength(100)
   codeExternal?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique((item: ZoneAirportTimeDto) => item.transferPointId)
+  @ValidateNested({ each: true })
+  @Type(() => ZoneAirportTimeDto)
+  airportTimes?: ZoneAirportTimeDto[];
 }

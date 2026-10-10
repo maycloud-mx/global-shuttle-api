@@ -44,6 +44,13 @@ export class TransferPointsController {
     return this.transferPointsService.findAll(query);
   }
 
+  @Get('airports')
+  @RequirePermissions(TRANSFER_POINT_PERMISSIONS.LIST)
+  @ApiMessage('Airport transfer points retrieved successfully')
+  findAirports() {
+    return this.transferPointsService.findAirports();
+  }
+
   @Get(':id')
   @RequirePermissions(TRANSFER_POINT_PERMISSIONS.VIEW)
   @ApiMessage('Transfer point retrieved successfully')

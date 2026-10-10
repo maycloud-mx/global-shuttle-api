@@ -174,6 +174,7 @@ model Zone {
   createdById  Int      @map("created_by") @db.UnsignedInt
   createdBy    User     @relation(fields: [createdById], references: [id], onDelete: Restrict)
   transferPoints TransferPoint[]
+  airportTimes ZoneTransferPointTime[]
   originRates    Rate[] @relation("RateOriginZone")
   destinationRates Rate[] @relation("RateDestinationZone")
 
@@ -205,6 +206,7 @@ model TransferPoint {
   zone         Zone              @relation(fields: [zoneId], references: [id], onDelete: Restrict)
   createdBy    User              @relation("TransferPointCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   updatedBy    User?             @relation("TransferPointUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  zoneTimes    ZoneTransferPointTime[]
 
   @@unique([zoneId, name])
   @@index([zoneId, status])
@@ -212,6 +214,18 @@ model TransferPoint {
   @@index([createdById])
   @@index([updatedById])
   @@map("transfer_points")
+}
+
+model ZoneTransferPointTime {
+  zoneId          Int           @map("zone_id") @db.UnsignedInt
+  transferPointId Int           @map("transfer_point_id") @db.UnsignedInt
+  hours           Decimal       @db.Decimal(5, 2)
+  zone            Zone          @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  transferPoint   TransferPoint @relation(fields: [transferPointId], references: [id], onDelete: Cascade)
+
+  @@id([zoneId, transferPointId])
+  @@index([transferPointId])
+  @@map("zone_transfer_point_times")
 }
 
 model Rate {
