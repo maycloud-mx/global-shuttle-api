@@ -22,6 +22,11 @@ model User {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
   role         Role      @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  zonesCreated Zone[]
+  transferPointsCreated TransferPoint[] @relation("TransferPointCreatedBy")
+  transferPointsUpdated TransferPoint[] @relation("TransferPointUpdatedBy")
+  ratesCreated Rate[] @relation("RateCreatedBy")
+  ratesUpdated Rate[] @relation("RateUpdatedBy")
 
   @@index([roleId])
   @@index([isActive])
@@ -118,7 +123,124 @@ model Currency {
   status    Boolean  @default(true)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
+  rates     Rate[]
 
   @@index([status])
   @@map("currencies")
+}
+
+model ServiceType {
+  id        Int      @id @default(autoincrement()) @db.UnsignedInt
+  name      String   @unique @db.VarChar(100)
+  code      String   @unique @db.VarChar(50)
+  status    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  rates     Rate[]
+
+  @@index([status])
+  @@map("service_types")
+}
+
+model Vehicle {
+  id              Int      @id @default(autoincrement()) @db.UnsignedInt
+  name            String   @unique @db.VarChar(100)
+  code            String   @unique @db.VarChar(50)
+  minPax          Int      @map("min_pax") @db.UnsignedInt
+  maxPax          Int      @map("max_pax") @db.UnsignedInt
+  luggageCapacity Int      @map("luggage_capacity") @db.UnsignedInt
+  descriptionEs   String?  @map("description_es") @db.Text
+  descriptionEn   String?  @map("description_en") @db.Text
+  image           String?  @db.Text
+  status          Boolean  @default(true)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  rates           Rate[]
+
+  @@index([status])
+  @@map("vehicles")
+}
+
+model Zone {
+  id           Int      @id @default(autoincrement()) @db.UnsignedInt
+  name         String   @unique @db.VarChar(100)
+  code         String   @unique @db.VarChar(50)
+  description  String?  @db.Text
+  isLocal      Boolean  @default(false) @map("is_local")
+  status       Boolean  @default(true)
+  codeExternal String?  @map("code_external") @db.VarChar(100)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime? @updatedAt @map("updated_at")
+  createdById  Int      @map("created_by") @db.UnsignedInt
+  createdBy    User     @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  transferPoints TransferPoint[]
+  originRates    Rate[] @relation("RateOriginZone")
+  destinationRates Rate[] @relation("RateDestinationZone")
+
+  @@index([status])
+  @@index([isLocal])
+  @@index([createdById])
+  @@map("zones")
+}
+
+enum TransferPointType {
+  HOTEL
+  AIRPORT
+}
+
+model TransferPoint {
+  id           Int               @id @default(autoincrement()) @db.UnsignedInt
+  zoneId       Int               @map("zone_id") @db.UnsignedInt
+  name         String            @db.VarChar(150)
+  code         String            @unique @db.VarChar(200)
+  codeExternal String?           @map("code_external") @db.VarChar(100)
+  type         TransferPointType
+  latitude     Decimal?          @db.Decimal(10, 7)
+  longitude    Decimal?          @db.Decimal(10, 7)
+  status       Boolean           @default(true)
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime?         @updatedAt @map("updated_at")
+  createdById  Int               @map("created_by") @db.UnsignedInt
+  updatedById  Int?              @map("updated_by") @db.UnsignedInt
+  zone         Zone              @relation(fields: [zoneId], references: [id], onDelete: Restrict)
+  createdBy    User              @relation("TransferPointCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy    User?             @relation("TransferPointUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  @@unique([zoneId, name])
+  @@index([zoneId, status])
+  @@index([type])
+  @@index([createdById])
+  @@index([updatedById])
+  @@map("transfer_points")
+}
+
+model Rate {
+  id                Int         @id @default(autoincrement()) @db.UnsignedInt
+  originZoneId      Int         @map("origin_zone_id") @db.UnsignedInt
+  destinationZoneId Int         @map("destination_zone_id") @db.UnsignedInt
+  vehicleId         Int         @map("vehicle_id") @db.UnsignedInt
+  currencyId        Int         @map("currency_id") @db.UnsignedInt
+  serviceTypeId     Int         @map("service_type_id") @db.UnsignedInt
+  price             Decimal     @db.Decimal(12, 2)
+  status            Boolean     @default(true)
+  createdAt         DateTime    @default(now()) @map("created_at")
+  createdById       Int         @map("created_by") @db.UnsignedInt
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+  updatedById       Int         @map("updated_by") @db.UnsignedInt
+  originZone        Zone        @relation("RateOriginZone", fields: [originZoneId], references: [id], onDelete: Restrict)
+  destinationZone   Zone        @relation("RateDestinationZone", fields: [destinationZoneId], references: [id], onDelete: Restrict)
+  vehicle           Vehicle     @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  currency          Currency    @relation(fields: [currencyId], references: [id], onDelete: Restrict)
+  serviceType       ServiceType @relation(fields: [serviceTypeId], references: [id], onDelete: Restrict)
+  createdBy         User        @relation("RateCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy         User        @relation("RateUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  @@unique([originZoneId, destinationZoneId, vehicleId, currencyId, serviceTypeId], map: "rates_route_vehicle_currency_service_key")
+  @@index([originZoneId, destinationZoneId, status])
+  @@index([vehicleId])
+  @@index([currencyId])
+  @@index([serviceTypeId])
+  @@index([createdById])
+  @@index([updatedById])
+  @@map("rates")
 }

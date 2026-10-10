@@ -40,6 +40,51 @@ ON DUPLICATE KEY UPDATE
 
 INSERT INTO menus
   (module_id, parent_id, name, code, route, icon, sort_order, is_visible, is_active, created_at, updated_at)
+SELECT id, NULL, 'Service types', 'service-types', '/service-types', 'route', 2, TRUE, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+FROM modules
+WHERE code = 'catalogs'
+ON DUPLICATE KEY UPDATE
+  is_active = TRUE,
+  updated_at = CURRENT_TIMESTAMP;
+
+INSERT INTO menus
+  (module_id, parent_id, name, code, route, icon, sort_order, is_visible, is_active, created_at, updated_at)
+SELECT id, NULL, 'Vehicles', 'vehicles', '/vehicles', 'car', 3, TRUE, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+FROM modules
+WHERE code = 'catalogs'
+ON DUPLICATE KEY UPDATE
+  is_active = TRUE,
+  updated_at = CURRENT_TIMESTAMP;
+
+INSERT INTO menus
+  (module_id, parent_id, name, code, route, icon, sort_order, is_visible, is_active, created_at, updated_at)
+SELECT id, NULL, 'Zones', 'zones', '/zones', 'map-pin', 4, TRUE, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+FROM modules
+WHERE code = 'catalogs'
+ON DUPLICATE KEY UPDATE
+  is_active = TRUE,
+  updated_at = CURRENT_TIMESTAMP;
+
+INSERT INTO menus
+  (module_id, parent_id, name, code, route, icon, sort_order, is_visible, is_active, created_at, updated_at)
+SELECT id, NULL, 'Transfer points', 'transfer-points', '/transfer-points', 'map-pinned', 5, TRUE, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+FROM modules
+WHERE code = 'catalogs'
+ON DUPLICATE KEY UPDATE
+  is_active = TRUE,
+  updated_at = CURRENT_TIMESTAMP;
+
+INSERT INTO menus
+  (module_id, parent_id, name, code, route, icon, sort_order, is_visible, is_active, created_at, updated_at)
+SELECT id, NULL, 'Rates', 'rates', '/rates', 'badge-dollar-sign', 6, TRUE, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+FROM modules
+WHERE code = 'catalogs'
+ON DUPLICATE KEY UPDATE
+  is_active = TRUE,
+  updated_at = CURRENT_TIMESTAMP;
+
+INSERT INTO menus
+  (module_id, parent_id, name, code, route, icon, sort_order, is_visible, is_active, created_at, updated_at)
 SELECT id, NULL, 'Roles and permissions', 'roles', '/roles', 'shield', 2, TRUE, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 FROM modules
 WHERE code = 'administration'
