@@ -9,14 +9,14 @@ import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { loadEnvironment } from '../config/environment.js';
 import type { LoginDto } from './dto/login.dto.js';
-import type { AuthenticatedUser } from './auth.types.js';
+import type { AuthenticatedUser, AuthNavigationModule } from './auth.types.js';
 
 const userWithAuthorization = {
   role: {
     include: {
       permissions: {
         where: {
-          menu: { isActive: true },
+          menu: { isActive: true, module: { isActive: true } },
           action: { isActive: true },
         },
         include: {
@@ -146,7 +146,71 @@ export class AuthService {
         menu: menu.code,
         action: action.code,
       })),
+      navigation: this.buildNavigation(user.role.permissions),
     };
+  }
+
+  private buildNavigation(
+    permissions: Awaited<
+      ReturnType<AuthService['findUserShape']>
+    >['role']['permissions'],
+  ): AuthNavigationModule[] {
+    const modules = new Map<number, AuthNavigationModule>();
+
+    for (const { menu, action } of permissions) {
+      if (!menu.isVisible) continue;
+
+      let navigationModule = modules.get(menu.module.id);
+      if (!navigationModule) {
+        navigationModule = {
+          id: menu.module.id,
+          code: menu.module.code,
+          name: menu.module.name,
+          description: menu.module.description,
+          icon: menu.module.icon,
+          sortOrder: menu.module.sortOrder,
+          menus: [],
+        };
+        modules.set(menu.module.id, navigationModule);
+      }
+
+      let navigationMenu = navigationModule.menus.find(
+        ({ id }) => id === menu.id,
+      );
+      if (!navigationMenu) {
+        navigationMenu = {
+          id: menu.id,
+          parentId: menu.parentId,
+          code: menu.code,
+          name: menu.name,
+          route: menu.route,
+          icon: menu.icon,
+          sortOrder: menu.sortOrder,
+          actions: [],
+        };
+        navigationModule.menus.push(navigationMenu);
+      }
+      navigationMenu.actions.push(action.code);
+    }
+
+    return [...modules.values()]
+      .map((module) => ({
+        ...module,
+        menus: module.menus
+          .map((menu) => ({
+            ...menu,
+            actions: menu.actions.sort((left, right) =>
+              left.localeCompare(right),
+            ),
+          }))
+          .sort(
+            (left, right) =>
+              left.sortOrder - right.sortOrder || left.id - right.id,
+          ),
+      }))
+      .sort(
+        (left, right) => left.sortOrder - right.sortOrder || left.id - right.id,
+      );
   }
 
   private async findUserShape(userId: number) {

@@ -110,3 +110,15 @@ model RoleMenuAction {
   @@index([actionId])
   @@map("role_menu_actions")
 }
+
+model Currency {
+  id        Int      @id @default(autoincrement()) @db.UnsignedInt
+  name      String   @unique @db.VarChar(100)
+  code      String   @unique @db.VarChar(10)
+  status    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("currencies")
+}

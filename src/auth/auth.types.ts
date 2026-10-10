@@ -4,6 +4,27 @@ export interface AuthPermission {
   action: string;
 }
 
+export interface AuthNavigationMenu {
+  id: number;
+  parentId: number | null;
+  code: string;
+  name: string;
+  route: string | null;
+  icon: string | null;
+  sortOrder: number;
+  actions: string[];
+}
+
+export interface AuthNavigationModule {
+  id: number;
+  code: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+  sortOrder: number;
+  menus: AuthNavigationMenu[];
+}
+
 export interface AuthenticatedUser {
   id: number;
   email: string;
@@ -16,6 +37,7 @@ export interface AuthenticatedUser {
     name: string;
   };
   permissions: AuthPermission[];
+  navigation: AuthNavigationModule[];
 }
 
 export interface JwtPayload {

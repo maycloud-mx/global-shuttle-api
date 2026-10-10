@@ -45,6 +45,7 @@ npm run db:generate   # regenera Prisma Client
 npm run db:introspect # importa el esquema de una base existente
 npm run db:migrate    # crea/aplica migraciones en desarrollo
 npm run db:migrate:deploy # aplica migraciones existentes en produccion
+npm run db:seed:admin # asigna todos los permisos al rol del usuario admin
 npm run db:studio     # interfaz visual para los datos
 npm run package:hostinger # genera el ZIP de despliegue
 ```
@@ -68,6 +69,18 @@ La respuesta contiene el correo, usuario y una `temporaryPassword`. Guardala en
 ese momento porque no vuelve a mostrarse. El endpoint funciona en produccion,
 pero se bloquea con `409 Conflict` tan pronto existe un usuario. El rol `DEMO`
 se crea sin permisos y posteriormente puede configurarse desde la base de datos.
+
+En desarrollo, despues de registrar los catalogos de menus y acciones, asigna
+todas sus combinaciones al rol del usuario con `username` igual a `admin`:
+
+```bash
+npm run db:seed:admin
+```
+
+El seed es idempotente y puede ejecutarse nuevamente cuando se agreguen menus o
+acciones. Los permisos se asignan al rol del administrador, por lo que tambien
+los reciben los demas usuarios que compartan ese rol. No ejecutes este seed en
+produccion.
 
 El login acepta correo o nombre de usuario:
 
