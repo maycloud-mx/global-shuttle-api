@@ -12,6 +12,7 @@ import { VehiclesModule } from './vehicles/vehicles.module.js';
 import { ZonesModule } from './zones/zones.module.js';
 import { TransferPointsModule } from './transfer-points/transfer-points.module.js';
 import { RatesModule } from './rates/rates.module.js';
+import { ReservationsModule } from './reservations/reservations.module.js';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { RatesModule } from './rates/rates.module.js';
     ZonesModule,
     TransferPointsModule,
     RatesModule,
+    ReservationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -20,6 +20,14 @@ ON DUPLICATE KEY UPDATE
   is_active = TRUE,
   updated_at = CURRENT_TIMESTAMP;
 
+INSERT INTO modules
+  (name, code, description, icon, sort_order, is_active, created_at, updated_at)
+VALUES
+  ('Sales', 'sales', 'Reservations and sales', 'shopping-cart', 3, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+ON DUPLICATE KEY UPDATE
+  is_active = TRUE,
+  updated_at = CURRENT_TIMESTAMP;
+
 INSERT INTO menus
   (module_id, parent_id, name, code, route, icon, sort_order, is_visible, is_active, created_at, updated_at)
 SELECT id, NULL, 'Users', 'users', '/users', 'users', 1, TRUE, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
@@ -79,6 +87,15 @@ INSERT INTO menus
 SELECT id, NULL, 'Rates', 'rates', '/rates', 'badge-dollar-sign', 6, TRUE, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 FROM modules
 WHERE code = 'catalogs'
+ON DUPLICATE KEY UPDATE
+  is_active = TRUE,
+  updated_at = CURRENT_TIMESTAMP;
+
+INSERT INTO menus
+  (module_id, parent_id, name, code, route, icon, sort_order, is_visible, is_active, created_at, updated_at)
+SELECT id, NULL, 'Reservations', 'reservations', '/reservations', 'calendar-check', 1, TRUE, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+FROM modules
+WHERE code = 'sales'
 ON DUPLICATE KEY UPDATE
   is_active = TRUE,
   updated_at = CURRENT_TIMESTAMP;

@@ -9,24 +9,27 @@ datasource db {
 }
 
 model User {
-  id           Int       @id @default(autoincrement()) @db.UnsignedInt
-  roleId       Int       @map("role_id") @db.UnsignedInt
-  email        String    @unique @db.VarChar(191)
-  username     String    @unique @db.VarChar(100)
+  id                         Int                  @id @default(autoincrement()) @db.UnsignedInt
+  roleId                     Int                  @map("role_id") @db.UnsignedInt
+  email                      String               @unique @db.VarChar(191)
+  username                   String               @unique @db.VarChar(100)
   /// Almacena únicamente el hash de la contraseña, nunca el valor en texto plano.
-  passwordHash String    @map("password_hash") @db.VarChar(255)
-  firstName    String    @map("first_name") @db.VarChar(100)
-  lastName     String    @map("last_name") @db.VarChar(100)
-  isActive     Boolean   @default(true) @map("is_active")
-  lastLoginAt  DateTime? @map("last_login_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-  role         Role      @relation(fields: [roleId], references: [id], onDelete: Restrict)
-  zonesCreated Zone[]
-  transferPointsCreated TransferPoint[] @relation("TransferPointCreatedBy")
-  transferPointsUpdated TransferPoint[] @relation("TransferPointUpdatedBy")
-  ratesCreated Rate[] @relation("RateCreatedBy")
-  ratesUpdated Rate[] @relation("RateUpdatedBy")
+  passwordHash               String               @map("password_hash") @db.VarChar(255)
+  firstName                  String               @map("first_name") @db.VarChar(100)
+  lastName                   String               @map("last_name") @db.VarChar(100)
+  isActive                   Boolean              @default(true) @map("is_active")
+  lastLoginAt                DateTime?            @map("last_login_at")
+  createdAt                  DateTime             @default(now()) @map("created_at")
+  updatedAt                  DateTime             @updatedAt @map("updated_at")
+  role                       Role                 @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  zonesCreated               Zone[]
+  transferPointsCreated      TransferPoint[]      @relation("TransferPointCreatedBy")
+  transferPointsUpdated      TransferPoint[]      @relation("TransferPointUpdatedBy")
+  ratesCreated               Rate[]               @relation("RateCreatedBy")
+  ratesUpdated               Rate[]               @relation("RateUpdatedBy")
+  reservationsCreated        Reservation[]
+  reservationPaymentsCreated ReservationPayment[]
+  reservationNotes           ReservationNote[]
 
   @@index([roleId])
   @@index([isActive])
@@ -117,66 +120,244 @@ model RoleMenuAction {
 }
 
 model Currency {
-  id        Int      @id @default(autoincrement()) @db.UnsignedInt
-  name      String   @unique @db.VarChar(100)
-  code      String   @unique @db.VarChar(10)
-  status    Boolean  @default(true)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  rates     Rate[]
+  id                  Int                  @id @default(autoincrement()) @db.UnsignedInt
+  name                String               @unique @db.VarChar(100)
+  code                String               @unique @db.VarChar(10)
+  status              Boolean              @default(true)
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  rates               Rate[]
+  reservations        Reservation[]
+  reservationPayments ReservationPayment[]
 
   @@index([status])
   @@map("currencies")
 }
 
+model ReservationCustomer {
+  id           Int           @id @default(autoincrement()) @db.UnsignedInt
+  firstName    String        @map("first_name") @db.VarChar(100)
+  lastName     String        @map("last_name") @db.VarChar(100)
+  email        String        @db.VarChar(191)
+  phone        String?       @db.VarChar(30)
+  countryId    Int?          @map("country_id") @db.UnsignedInt
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime?     @updatedAt @map("updated_at")
+  country      Country?      @relation(fields: [countryId], references: [id], onDelete: Restrict)
+  reservations Reservation[]
+
+  @@index([email])
+  @@index([countryId])
+  @@map("reservation_customers")
+}
+
+model Country {
+  id                   Int                   @id @default(autoincrement()) @db.UnsignedInt
+  name                 String                @unique @db.VarChar(100)
+  iso2                 String                @unique @db.Char(2)
+  phoneCode            String                @map("phone_code") @db.VarChar(10)
+  status               Boolean               @default(true)
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime?             @updatedAt @map("updated_at")
+  reservationCustomers ReservationCustomer[]
+
+  @@index([phoneCode])
+  @@index([status])
+  @@map("countries")
+}
+
+model BusinessPartner {
+  id                 Int           @id @default(autoincrement()) @db.UnsignedInt
+  name               String        @db.VarChar(150)
+  companyName        String        @map("company_name") @db.VarChar(191)
+  code               String        @unique @db.VarChar(50)
+  discountPercentage Decimal       @default(0) @map("discount_percentage") @db.Decimal(5, 2)
+  status             Boolean       @default(true)
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime?     @updatedAt @map("updated_at")
+  reservations       Reservation[]
+
+  @@index([status])
+  @@index([companyName])
+  @@map("business_partners")
+}
+
+model Airline {
+  id                   Int                   @id @default(autoincrement()) @db.UnsignedInt
+  name                 String                @db.VarChar(150)
+  iataCode             String                @unique @map("iata_code") @db.VarChar(3)
+  icaoCode             String                @unique @map("icao_code") @db.VarChar(4)
+  status               Boolean               @default(true)
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime?             @updatedAt @map("updated_at")
+  reservationTransfers ReservationTransfer[]
+
+  @@index([status])
+  @@index([name])
+  @@map("airlines")
+}
+
+model ReservationStatus {
+  id           Int           @id @default(autoincrement()) @db.UnsignedInt
+  name         String        @unique @db.VarChar(100)
+  status       Boolean       @default(true)
+  reservations Reservation[]
+
+  @@index([status])
+  @@map("reservation_statuses")
+}
+
+model Reservation {
+  id                                Int                   @id @default(autoincrement()) @db.UnsignedInt
+  folio                             String                @unique @db.VarChar(50)
+  currencyId                        Int                   @map("currency_id") @db.UnsignedInt
+  subtotal                          Decimal               @db.Decimal(12, 2)
+  discount                          Decimal               @default(0) @db.Decimal(12, 2)
+  total                             Decimal               @db.Decimal(12, 2)
+  paidAmount                        Decimal               @default(0) @map("paid_amount") @db.Decimal(12, 2)
+  pendingAmount                     Decimal               @map("pending_amount") @db.Decimal(12, 2)
+  reservationStatusId               Int                   @map("reservation_status_id") @db.UnsignedInt
+  paymentStatus                     String                @map("payment_status") @db.VarChar(50)
+  source                            String                @db.VarChar(50)
+  createdById                       Int                   @map("created_by") @db.UnsignedInt
+  createdAt                         DateTime              @default(now()) @map("created_at")
+  updatedAt                         DateTime?             @updatedAt @map("updated_at")
+  businessPartnerId                 Int?                  @map("business_partner_id") @db.UnsignedInt
+  businessPartnerCode               String?               @map("business_partner_code") @db.VarChar(50)
+  businessPartnerDiscountPercentage Decimal?              @map("business_partner_discount_percentage") @db.Decimal(5, 2)
+  reservationCustomerId             Int?                  @map("reservation_customer_id") @db.UnsignedInt
+  currency                          Currency              @relation(fields: [currencyId], references: [id], onDelete: Restrict)
+  reservationStatus                 ReservationStatus     @relation(fields: [reservationStatusId], references: [id], onDelete: Restrict)
+  createdBy                         User                  @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  businessPartner                   BusinessPartner?      @relation(fields: [businessPartnerId], references: [id], onDelete: Restrict)
+  reservationCustomer               ReservationCustomer?  @relation(fields: [reservationCustomerId], references: [id], onDelete: Restrict)
+  payments                          ReservationPayment[]
+  transfers                         ReservationTransfer[]
+  notes                             ReservationNote[]
+
+  @@index([currencyId])
+  @@index([reservationStatusId])
+  @@index([paymentStatus])
+  @@index([source])
+  @@index([createdById])
+  @@index([createdAt])
+  @@index([businessPartnerId])
+  @@index([businessPartnerCode])
+  @@index([reservationCustomerId])
+  @@map("reservations")
+}
+
+model ReservationPayment {
+  id                   Int         @id @default(autoincrement()) @db.UnsignedInt
+  reservationId        Int         @map("reservation_id") @db.UnsignedInt
+  paymentMethod        String      @map("payment_method") @db.VarChar(50)
+  provider             String?     @db.VarChar(50)
+  providerEnvironment  String?     @map("provider_environment") @db.VarChar(30)
+  providerOrderId      String?     @map("provider_order_id") @db.VarChar(191)
+  providerCaptureId    String?     @map("provider_capture_id") @db.VarChar(191)
+  providerPayerId      String?     @map("provider_payer_id") @db.VarChar(191)
+  providerPayerEmail   String?     @map("provider_payer_email") @db.VarChar(191)
+  providerStatus       String?     @map("provider_status") @db.VarChar(50)
+  idempotencyKey       String?     @unique @map("idempotency_key") @db.VarChar(191)
+  publicTokenHash      String?     @map("public_token_hash") @db.VarChar(255)
+  publicTokenExpiresAt DateTime?   @map("public_token_expires_at")
+  publicTokenUsedAt    DateTime?   @map("public_token_used_at")
+  paymentStatus        String      @map("payment_status") @db.VarChar(50)
+  amount               Decimal     @db.Decimal(12, 2)
+  currencyId           Int         @map("currency_id") @db.UnsignedInt
+  paymentDate          DateTime?   @map("payment_date")
+  expiresAt            DateTime?   @map("expires_at")
+  approvedAt           DateTime?   @map("approved_at")
+  capturedAt           DateTime?   @map("captured_at")
+  cancelledAt          DateTime?   @map("cancelled_at")
+  failedAt             DateTime?   @map("failed_at")
+  providerResponse     Json?       @map("provider_response")
+  reference            String?     @db.VarChar(191)
+  receiptFile          String?     @map("receipt_file") @db.Text
+  notes                String?     @db.Text
+  createdById          Int         @map("created_by") @db.UnsignedInt
+  createdAt            DateTime    @default(now()) @map("created_at")
+  updatedAt            DateTime?   @updatedAt @map("updated_at")
+  reservation          Reservation @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+  currency             Currency    @relation(fields: [currencyId], references: [id], onDelete: Restrict)
+  createdBy            User        @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([reservationId])
+  @@index([paymentStatus])
+  @@index([provider, providerOrderId])
+  @@index([currencyId])
+  @@index([createdById])
+  @@index([createdAt])
+  @@map("reservation_payments")
+}
+
+model ReservationNote {
+  id            Int         @id @default(autoincrement()) @db.UnsignedInt
+  reservationId Int         @map("reservation_id") @db.UnsignedInt
+  userId        Int         @map("user_id") @db.UnsignedInt
+  notes         String      @db.Text
+  isPrivate     Boolean     @default(false) @map("is_private")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime?   @updatedAt @map("updated_at")
+  reservation   Reservation @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([reservationId, createdAt])
+  @@index([userId])
+  @@index([isPrivate])
+  @@map("reservation_notes")
+}
+
 model ServiceType {
-  id        Int      @id @default(autoincrement()) @db.UnsignedInt
-  name      String   @unique @db.VarChar(100)
-  code      String   @unique @db.VarChar(50)
-  status    Boolean  @default(true)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  rates     Rate[]
+  id                   Int                   @id @default(autoincrement()) @db.UnsignedInt
+  name                 String                @unique @db.VarChar(100)
+  code                 String                @unique @db.VarChar(50)
+  status               Boolean               @default(true)
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+  rates                Rate[]
+  reservationTransfers ReservationTransfer[]
 
   @@index([status])
   @@map("service_types")
 }
 
 model Vehicle {
-  id              Int      @id @default(autoincrement()) @db.UnsignedInt
-  name            String   @unique @db.VarChar(100)
-  code            String   @unique @db.VarChar(50)
-  minPax          Int      @map("min_pax") @db.UnsignedInt
-  maxPax          Int      @map("max_pax") @db.UnsignedInt
-  luggageCapacity Int      @map("luggage_capacity") @db.UnsignedInt
-  descriptionEs   String?  @map("description_es") @db.Text
-  descriptionEn   String?  @map("description_en") @db.Text
-  image           String?  @db.Text
-  status          Boolean  @default(true)
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
-  rates           Rate[]
+  id                   Int                   @id @default(autoincrement()) @db.UnsignedInt
+  name                 String                @unique @db.VarChar(100)
+  code                 String                @unique @db.VarChar(50)
+  minPax               Int                   @map("min_pax") @db.UnsignedInt
+  maxPax               Int                   @map("max_pax") @db.UnsignedInt
+  luggageCapacity      Int                   @map("luggage_capacity") @db.UnsignedInt
+  descriptionEs        String?               @map("description_es") @db.Text
+  descriptionEn        String?               @map("description_en") @db.Text
+  image                String?               @db.Text
+  status               Boolean               @default(true)
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+  rates                Rate[]
+  reservationTransfers ReservationTransfer[]
 
   @@index([status])
   @@map("vehicles")
 }
 
 model Zone {
-  id           Int      @id @default(autoincrement()) @db.UnsignedInt
-  name         String   @unique @db.VarChar(100)
-  code         String   @unique @db.VarChar(50)
-  description  String?  @db.Text
-  isLocal      Boolean  @default(false) @map("is_local")
-  status       Boolean  @default(true)
-  codeExternal String?  @map("code_external") @db.VarChar(100)
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime? @updatedAt @map("updated_at")
-  createdById  Int      @map("created_by") @db.UnsignedInt
-  createdBy    User     @relation(fields: [createdById], references: [id], onDelete: Restrict)
-  transferPoints TransferPoint[]
-  airportTimes ZoneTransferPointTime[]
-  originRates    Rate[] @relation("RateOriginZone")
-  destinationRates Rate[] @relation("RateDestinationZone")
+  id               Int                     @id @default(autoincrement()) @db.UnsignedInt
+  name             String                  @unique @db.VarChar(100)
+  code             String                  @unique @db.VarChar(50)
+  description      String?                 @db.Text
+  isLocal          Boolean                 @default(false) @map("is_local")
+  status           Boolean                 @default(true)
+  codeExternal     String?                 @map("code_external") @db.VarChar(100)
+  createdAt        DateTime                @default(now()) @map("created_at")
+  updatedAt        DateTime?               @updatedAt @map("updated_at")
+  createdById      Int                     @map("created_by") @db.UnsignedInt
+  createdBy        User                    @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  transferPoints   TransferPoint[]
+  airportTimes     ZoneTransferPointTime[]
+  originRates      Rate[]                  @relation("RateOriginZone")
+  destinationRates Rate[]                  @relation("RateDestinationZone")
 
   @@index([status])
   @@index([isLocal])
@@ -190,23 +371,25 @@ enum TransferPointType {
 }
 
 model TransferPoint {
-  id           Int               @id @default(autoincrement()) @db.UnsignedInt
-  zoneId       Int               @map("zone_id") @db.UnsignedInt
-  name         String            @db.VarChar(150)
-  code         String            @unique @db.VarChar(200)
-  codeExternal String?           @map("code_external") @db.VarChar(100)
-  type         TransferPointType
-  latitude     Decimal?          @db.Decimal(10, 7)
-  longitude    Decimal?          @db.Decimal(10, 7)
-  status       Boolean           @default(true)
-  createdAt    DateTime          @default(now()) @map("created_at")
-  updatedAt    DateTime?         @updatedAt @map("updated_at")
-  createdById  Int               @map("created_by") @db.UnsignedInt
-  updatedById  Int?              @map("updated_by") @db.UnsignedInt
-  zone         Zone              @relation(fields: [zoneId], references: [id], onDelete: Restrict)
-  createdBy    User              @relation("TransferPointCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy    User?             @relation("TransferPointUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
-  zoneTimes    ZoneTransferPointTime[]
+  id                              Int                     @id @default(autoincrement()) @db.UnsignedInt
+  zoneId                          Int                     @map("zone_id") @db.UnsignedInt
+  name                            String                  @db.VarChar(150)
+  code                            String                  @unique @db.VarChar(200)
+  codeExternal                    String?                 @map("code_external") @db.VarChar(100)
+  type                            TransferPointType
+  latitude                        Decimal?                @db.Decimal(10, 7)
+  longitude                       Decimal?                @db.Decimal(10, 7)
+  status                          Boolean                 @default(true)
+  createdAt                       DateTime                @default(now()) @map("created_at")
+  updatedAt                       DateTime?               @updatedAt @map("updated_at")
+  createdById                     Int                     @map("created_by") @db.UnsignedInt
+  updatedById                     Int?                    @map("updated_by") @db.UnsignedInt
+  zone                            Zone                    @relation(fields: [zoneId], references: [id], onDelete: Restrict)
+  createdBy                       User                    @relation("TransferPointCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy                       User?                   @relation("TransferPointUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  zoneTimes                       ZoneTransferPointTime[]
+  originReservationTransfers      ReservationTransfer[]   @relation("ReservationTransferOrigin")
+  destinationReservationTransfers ReservationTransfer[]   @relation("ReservationTransferDestination")
 
   @@unique([zoneId, name])
   @@index([zoneId, status])
@@ -229,25 +412,26 @@ model ZoneTransferPointTime {
 }
 
 model Rate {
-  id                Int         @id @default(autoincrement()) @db.UnsignedInt
-  originZoneId      Int         @map("origin_zone_id") @db.UnsignedInt
-  destinationZoneId Int         @map("destination_zone_id") @db.UnsignedInt
-  vehicleId         Int         @map("vehicle_id") @db.UnsignedInt
-  currencyId        Int         @map("currency_id") @db.UnsignedInt
-  serviceTypeId     Int         @map("service_type_id") @db.UnsignedInt
-  price             Decimal     @db.Decimal(12, 2)
-  status            Boolean     @default(true)
-  createdAt         DateTime    @default(now()) @map("created_at")
-  createdById       Int         @map("created_by") @db.UnsignedInt
-  updatedAt         DateTime    @updatedAt @map("updated_at")
-  updatedById       Int         @map("updated_by") @db.UnsignedInt
-  originZone        Zone        @relation("RateOriginZone", fields: [originZoneId], references: [id], onDelete: Restrict)
-  destinationZone   Zone        @relation("RateDestinationZone", fields: [destinationZoneId], references: [id], onDelete: Restrict)
-  vehicle           Vehicle     @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
-  currency          Currency    @relation(fields: [currencyId], references: [id], onDelete: Restrict)
-  serviceType       ServiceType @relation(fields: [serviceTypeId], references: [id], onDelete: Restrict)
-  createdBy         User        @relation("RateCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy         User        @relation("RateUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  id                   Int                   @id @default(autoincrement()) @db.UnsignedInt
+  originZoneId         Int                   @map("origin_zone_id") @db.UnsignedInt
+  destinationZoneId    Int                   @map("destination_zone_id") @db.UnsignedInt
+  vehicleId            Int                   @map("vehicle_id") @db.UnsignedInt
+  currencyId           Int                   @map("currency_id") @db.UnsignedInt
+  serviceTypeId        Int                   @map("service_type_id") @db.UnsignedInt
+  price                Decimal               @db.Decimal(12, 2)
+  status               Boolean               @default(true)
+  createdAt            DateTime              @default(now()) @map("created_at")
+  createdById          Int                   @map("created_by") @db.UnsignedInt
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+  updatedById          Int                   @map("updated_by") @db.UnsignedInt
+  originZone           Zone                  @relation("RateOriginZone", fields: [originZoneId], references: [id], onDelete: Restrict)
+  destinationZone      Zone                  @relation("RateDestinationZone", fields: [destinationZoneId], references: [id], onDelete: Restrict)
+  vehicle              Vehicle               @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  currency             Currency              @relation(fields: [currencyId], references: [id], onDelete: Restrict)
+  serviceType          ServiceType           @relation(fields: [serviceTypeId], references: [id], onDelete: Restrict)
+  createdBy            User                  @relation("RateCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy            User                  @relation("RateUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  reservationTransfers ReservationTransfer[]
 
   @@unique([originZoneId, destinationZoneId, vehicleId, currencyId, serviceTypeId], map: "rates_route_vehicle_currency_service_key")
   @@index([originZoneId, destinationZoneId, status])
@@ -257,4 +441,71 @@ model Rate {
   @@index([createdById])
   @@index([updatedById])
   @@map("rates")
+}
+
+enum ReservationTransferSegmentLeg {
+  SALIDA
+  LLEGADA
+}
+
+enum ReservationTransferSegmentType {
+  AH
+  HA
+  HH
+}
+
+model TransferStatus {
+  id                   Int                   @id @default(autoincrement()) @db.UnsignedInt
+  name                 String                @unique @db.VarChar(100)
+  status               Boolean               @default(true)
+  reservationTransfers ReservationTransfer[]
+
+  @@index([status])
+  @@map("transfer_statuses")
+}
+
+model ReservationTransfer {
+  id                         Int                            @id @default(autoincrement()) @db.UnsignedInt
+  reservationId              Int                            @map("reservation_id") @db.UnsignedInt
+  serviceTypeId              Int                            @map("service_type_id") @db.UnsignedInt
+  vehicleId                  Int                            @map("vehicle_id") @db.UnsignedInt
+  rateId                     Int                            @map("rate_id") @db.UnsignedInt
+  originTransferPointId      Int                            @map("origin_transfer_point_id") @db.UnsignedInt
+  destinationTransferPointId Int                            @map("destination_transfer_point_id") @db.UnsignedInt
+  segmentLeg                 ReservationTransferSegmentLeg  @map("segment_leg")
+  segmentType                ReservationTransferSegmentType @map("segment_type")
+  transferGroupUuid          String                         @map("transfer_group_uuid") @db.Char(36)
+  pickupDate                 DateTime                       @map("pickup_date") @db.Date
+  pickupTime                 DateTime                       @map("pickup_time") @db.Time(0)
+  serviceDate                DateTime                       @map("service_date") @db.Date
+  serviceTime                DateTime                       @map("service_time") @db.Time(0)
+  passengers                 Int                            @db.UnsignedInt
+  luggage                    Int                            @db.UnsignedInt
+  flightNumber               String?                        @map("flight_number") @db.VarChar(30)
+  airlineId                  Int?                           @map("airline_id") @db.UnsignedInt
+  transferStatusId           Int                            @map("transfer_status_id") @db.UnsignedInt
+  operatorName               String?                        @map("operator_name") @db.VarChar(150)
+  unitName                   String?                        @map("unit_name") @db.VarChar(150)
+  createdAt                  DateTime                       @default(now()) @map("created_at")
+  updatedAt                  DateTime?                      @updatedAt @map("updated_at")
+  reservation                Reservation                    @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+  serviceType                ServiceType                    @relation(fields: [serviceTypeId], references: [id], onDelete: Restrict)
+  vehicle                    Vehicle                        @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  rate                       Rate                           @relation(fields: [rateId], references: [id], onDelete: Restrict)
+  originTransferPoint        TransferPoint                  @relation("ReservationTransferOrigin", fields: [originTransferPointId], references: [id], onDelete: Restrict)
+  destinationTransferPoint   TransferPoint                  @relation("ReservationTransferDestination", fields: [destinationTransferPointId], references: [id], onDelete: Restrict)
+  transferStatus             TransferStatus                 @relation(fields: [transferStatusId], references: [id], onDelete: Restrict)
+  airline                    Airline?                       @relation(fields: [airlineId], references: [id], onDelete: Restrict)
+
+  @@index([reservationId])
+  @@index([serviceTypeId])
+  @@index([vehicleId])
+  @@index([rateId])
+  @@index([originTransferPointId])
+  @@index([destinationTransferPointId])
+  @@index([transferGroupUuid])
+  @@index([transferStatusId])
+  @@index([airlineId])
+  @@index([serviceDate, serviceTime])
+  @@map("reservation_transfers")
 }
