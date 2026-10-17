@@ -3,7 +3,10 @@ import { randomUUID } from 'node:crypto';
 import { Prisma } from '../generated/prisma/index.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { EmailService } from '../email/email.service.js';
-import { renderReservationQuoteEmail } from '../email/templates/reservation-quote.template.js';
+import {
+  renderReservationQuoteEmail,
+  renderReservationQuoteText,
+} from '../email/templates/reservation-quote.template.js';
 import type { CreateReservationDto } from './dto/create-reservation.dto.js';
 import type { ListReservationTransfersDto } from './dto/list-reservation-transfers.dto.js';
 import type { QuoteReservationDto } from './dto/quote-reservation.dto.js';
@@ -972,7 +975,7 @@ export class ReservationsService {
 
     const customerName =
       `${reservation.reservationCustomer.firstName} ${reservation.reservationCustomer.lastName}`.trim();
-    const html = renderReservationQuoteEmail({
+    const templateData = {
       folio: reservation.folio,
       customerName,
       currencyCode: reservation.currency.code,
@@ -987,13 +990,16 @@ export class ReservationsService {
         passengers: transfer.passengers,
         vehicle: transfer.vehicle.name,
       })),
-    });
+    };
+    const html = renderReservationQuoteEmail(templateData);
+    const text = renderReservationQuoteText(templateData);
     const email = dto.email.trim().toLowerCase();
 
     await this.emailService.sendEmail(
       email,
-      `Cotización ${reservation.folio} - Global Shuttle`,
+      `Your Global Shuttle quote - ${reservation.folio}`,
       html,
+      text,
     );
 
     return { reservationId: id, folio: reservation.folio, email };
