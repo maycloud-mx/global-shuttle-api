@@ -36,7 +36,10 @@ function requireString(
   return value;
 }
 
-function requireBoolean( environment: Record<string, unknown>, key: string): boolean {
+function requireBoolean(
+  environment: Record<string, unknown>,
+  key: string,
+): boolean {
   const value = environment[key];
 
   if (value === 'true' || value === true) {

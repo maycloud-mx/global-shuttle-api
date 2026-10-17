@@ -19,6 +19,7 @@ import { CreateReservationDto } from './dto/create-reservation.dto.js';
 import { ListReservationTransfersDto } from './dto/list-reservation-transfers.dto.js';
 import { QuoteReservationDto } from './dto/quote-reservation.dto.js';
 import { RequoteReservationDto } from './dto/requote-reservation.dto.js';
+import { SendQuoteEmailDto } from './dto/send-quote-email.dto.js';
 import { UpdateReservationDto } from './dto/update-reservation.dto.js';
 import { RESERVATION_PERMISSIONS } from './reservation-permissions.js';
 import { ReservationsService } from './reservations.service.js';
@@ -70,6 +71,16 @@ export class ReservationsController {
     @Body() dto: UpdateReservationDto,
   ) {
     return this.reservationsService.update(id, dto);
+  }
+
+  @Post(':id/send-quote-email')
+  @RequirePermissions(RESERVATION_PERMISSIONS.SEND_QUOTE_EMAIL)
+  @ApiMessage('Reservation quote email sent successfully')
+  sendQuoteEmail(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: SendQuoteEmailDto,
+  ) {
+    return this.reservationsService.sendQuoteEmail(id, dto);
   }
 
   @Get(':id')

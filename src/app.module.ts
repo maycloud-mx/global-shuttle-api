@@ -35,7 +35,7 @@ import { EmailModule } from './email/email.module.js';
     ReservationsModule,
     CountriesModule,
     AirlinesModule,
-    EmailModule
+    EmailModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -2,11 +2,14 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { randomUUID } from 'node:crypto';
 import { Prisma } from '../generated/prisma/index.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { EmailService } from '../email/email.service.js';
+import { renderReservationQuoteEmail } from '../email/templates/reservation-quote.template.js';
 import type { CreateReservationDto } from './dto/create-reservation.dto.js';
 import type { ListReservationTransfersDto } from './dto/list-reservation-transfers.dto.js';
 import type { QuoteReservationDto } from './dto/quote-reservation.dto.js';
 import type { RequoteReservationDto } from './dto/requote-reservation.dto.js';
 import type { UpdateReservationDto } from './dto/update-reservation.dto.js';
+import type { SendQuoteEmailDto } from './dto/send-quote-email.dto.js';
 
 const ONE_WAY_SERVICE_CODE = 'ONE_WAY';
 const ROUND_TRIP_SERVICE_CODE = 'ROUND_TRIP';
@@ -55,7 +58,10 @@ const transferListSelect = {
 
 @Injectable()
 export class ReservationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly emailService: EmailService,
+  ) {}
 
   async quote(dto: QuoteReservationDto) {
     if (dto.originTransferPointId === dto.destinationTransferPointId) {
@@ -923,6 +929,74 @@ export class ReservationsService {
     });
 
     return this.findOne(id);
+  }
+
+  async sendQuoteEmail(id: number, dto: SendQuoteEmailDto) {
+    const reservation = await this.prisma.reservation.findUnique({
+      where: { id },
+      select: {
+        folio: true,
+        total: true,
+        currency: { select: { code: true } },
+        reservationStatus: { select: { code: true } },
+        reservationCustomer: {
+          select: { firstName: true, lastName: true },
+        },
+        transfers: {
+          select: {
+            serviceDate: true,
+            serviceTime: true,
+            pickupDate: true,
+            pickupTime: true,
+            passengers: true,
+            vehicle: { select: { name: true } },
+            originTransferPoint: { select: { name: true } },
+            destinationTransferPoint: { select: { name: true } },
+          },
+          orderBy: [{ serviceDate: 'asc' }, { serviceTime: 'asc' }],
+        },
+      },
+    });
+
+    if (!reservation) {
+      throw new NotFoundException('Reservation not found');
+    }
+    if (reservation.reservationStatus.code !== QUOTATION_STATUS_CODE) {
+      throw new BadRequestException(
+        'Only reservations in quotation status can send a quote email',
+      );
+    }
+    if (!reservation.reservationCustomer) {
+      throw new BadRequestException('Reservation customer not found');
+    }
+
+    const customerName =
+      `${reservation.reservationCustomer.firstName} ${reservation.reservationCustomer.lastName}`.trim();
+    const html = renderReservationQuoteEmail({
+      folio: reservation.folio,
+      customerName,
+      currencyCode: reservation.currency.code,
+      total: reservation.total.toFixed(2),
+      transfers: reservation.transfers.map((transfer) => ({
+        origin: transfer.originTransferPoint.name,
+        destination: transfer.destinationTransferPoint.name,
+        serviceDate: transfer.serviceDate,
+        serviceTime: transfer.serviceTime,
+        pickupDate: transfer.pickupDate,
+        pickupTime: transfer.pickupTime,
+        passengers: transfer.passengers,
+        vehicle: transfer.vehicle.name,
+      })),
+    });
+    const email = dto.email.trim().toLowerCase();
+
+    await this.emailService.sendEmail(
+      email,
+      `Cotización ${reservation.folio} - Global Shuttle`,
+      html,
+    );
+
+    return { reservationId: id, folio: reservation.folio, email };
   }
 
   async findTransfers(query: ListReservationTransfersDto) {

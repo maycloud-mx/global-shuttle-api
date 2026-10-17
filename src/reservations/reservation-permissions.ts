@@ -5,4 +5,5 @@ export const RESERVATION_PERMISSIONS = {
   VIEW: 'reservations:view',
   UPDATE: 'reservations:update',
   REQUOTE: 'reservations:update',
+  SEND_QUOTE_EMAIL: 'reservations:update',
 } as const;
