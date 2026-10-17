@@ -44,6 +44,13 @@ export class CountriesController {
     return this.countriesService.findAll(query);
   }
 
+  @Get('options')
+  @RequirePermissions(COUNTRY_PERMISSIONS.LIST)
+  @ApiMessage('Country options retrieved successfully')
+  findOptions() {
+    return this.countriesService.findOptions();
+  }
+
   @Get(':id')
   @RequirePermissions(COUNTRY_PERMISSIONS.VIEW)
   @ApiMessage('Country retrieved successfully')

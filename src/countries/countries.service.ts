@@ -87,6 +87,14 @@ export class CountriesService {
     return country;
   }
 
+  findOptions() {
+    return this.prisma.country.findMany({
+      where: { status: true },
+      select: { id: true, name: true },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+    });
+  }
+
   async update(id: number, dto: UpdateCountryDto) {
     await this.ensureCountryExists(id);
 

@@ -44,6 +44,13 @@ export class AirlinesController {
     return this.airlinesService.findAll(query);
   }
 
+  @Get('options')
+  @RequirePermissions(AIRLINE_PERMISSIONS.LIST)
+  @ApiMessage('Airline options retrieved successfully')
+  findOptions() {
+    return this.airlinesService.findOptions();
+  }
+
   @Get(':id')
   @RequirePermissions(AIRLINE_PERMISSIONS.VIEW)
   @ApiMessage('Airline retrieved successfully')

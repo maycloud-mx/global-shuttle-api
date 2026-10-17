@@ -87,6 +87,14 @@ export class AirlinesService {
     return airline;
   }
 
+  findOptions() {
+    return this.prisma.airline.findMany({
+      where: { status: true },
+      select: { id: true, name: true },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+    });
+  }
+
   async update(id: number, dto: UpdateAirlineDto) {
     await this.ensureAirlineExists(id);
 
