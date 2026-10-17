@@ -91,6 +91,27 @@ ON DUPLICATE KEY UPDATE
   is_active = TRUE,
   updated_at = CURRENT_TIMESTAMP;
 
+-- Countries
+INSERT INTO menus
+  (module_id, parent_id, name, code, route, icon, sort_order, is_visible, is_active, created_at, updated_at)
+SELECT id, NULL, 'Countries', 'countries', '/countries', 'globe', 7, TRUE, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP 
+FROM modules
+WHERE code = 'catalogs'
+ON DUPLICATE KEY UPDATE
+  is_active = TRUE,
+  updated_at = CURRENT_TIMESTAMP;
+
+
+-- Airlines
+INSERT INTO menus
+  (module_id, parent_id, name, code, route, icon, sort_order, is_visible, is_active, created_at, updated_at)
+SELECT id, NULL, 'Airlines', 'airlines', '/airlines', 'plane', 8, TRUE, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+FROM modules
+WHERE code = 'catalogs'
+ON DUPLICATE KEY UPDATE
+  is_active = TRUE,
+  updated_at = CURRENT_TIMESTAMP;
+  
 INSERT INTO menus
   (module_id, parent_id, name, code, route, icon, sort_order, is_visible, is_active, created_at, updated_at)
 SELECT id, NULL, 'Reservations', 'reservations', '/reservations', 'calendar-check', 1, TRUE, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
