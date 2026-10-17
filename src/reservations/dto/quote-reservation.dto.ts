@@ -12,6 +12,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { ReservationPricingDto } from './reservation-pricing.dto.js';
 
 export class QuoteReservationCustomerDto {
   @IsString()
@@ -38,35 +39,10 @@ export class QuoteReservationCustomerDto {
   countryId?: number;
 }
 
-export class QuoteReservationDto {
+export class QuoteReservationDto extends ReservationPricingDto {
   @Type(() => QuoteReservationCustomerDto)
   @ValidateNested()
   customer: QuoteReservationCustomerDto;
-
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  currencyId: number;
-
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  serviceTypeId: number;
-
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  originTransferPointId: number;
-
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  destinationTransferPointId: number;
-
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  passengers: number;
 
   @IsOptional()
   @Type(() => Number)

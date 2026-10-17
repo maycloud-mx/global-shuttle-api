@@ -5,12 +5,14 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import type { CreateReservationDto } from './dto/create-reservation.dto.js';
 import type { ListReservationTransfersDto } from './dto/list-reservation-transfers.dto.js';
 import type { QuoteReservationDto } from './dto/quote-reservation.dto.js';
+import type { RequoteReservationDto } from './dto/requote-reservation.dto.js';
+import type { UpdateReservationDto } from './dto/update-reservation.dto.js';
 
 const ONE_WAY_SERVICE_CODE = 'ONE_WAY';
 const ROUND_TRIP_SERVICE_CODE = 'ROUND_TRIP';
 const CANCUN_UTC_OFFSET = '-05:00';
 const CANCUN_TIME_ZONE = 'America/Cancun';
-const QUOTATION_STATUS_NAME = 'Cotización';
+const QUOTATION_STATUS_CODE = 'QUOTATION';
 const INITIAL_TRANSFER_STATUS_ID = 1;
 
 const transferListSelect = {
@@ -37,7 +39,7 @@ const transferListSelect = {
       paidAmount: true,
       discount: true,
       total: true,
-      reservationStatus: { select: { id: true, name: true } },
+      reservationStatus: { select: { id: true, name: true, code: true } },
       reservationCustomer: {
         select: {
           id: true,
@@ -134,7 +136,6 @@ export class ReservationsService {
           status: true,
           minPax: { lte: dto.passengers },
           maxPax: { gte: dto.passengers },
-          luggageCapacity: { gte: dto.luggage },
         },
       },
       select: {
@@ -227,7 +228,7 @@ export class ReservationsService {
 
     const [reservationStatus, transferStatus, points] = await Promise.all([
       this.prisma.reservationStatus.findFirst({
-        where: { name: QUOTATION_STATUS_NAME, status: true },
+        where: { code: QUOTATION_STATUS_CODE, status: true },
         select: { id: true },
       }),
       this.prisma.transferStatus.findFirst({
@@ -353,7 +354,7 @@ export class ReservationsService {
       },
       include: {
         currency: { select: { id: true, name: true, code: true } },
-        reservationStatus: { select: { id: true, name: true } },
+        reservationStatus: { select: { id: true, name: true, code: true } },
         reservationCustomer: true,
         transfers: {
           include: {
@@ -478,6 +479,450 @@ export class ReservationsService {
       throw new BadRequestException('Invalid service or pickup date/time');
     }
     return timestamp;
+  }
+
+  async findOne(id: number) {
+    const reservation = await this.prisma.reservation.findUnique({
+      where: { id },
+      include: {
+        currency: { select: { id: true, name: true, code: true } },
+        reservationStatus: {
+          select: { id: true, name: true, code: true },
+        },
+        createdBy: {
+          select: {
+            id: true,
+            username: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        businessPartner: {
+          select: {
+            id: true,
+            name: true,
+            companyName: true,
+            code: true,
+            discountPercentage: true,
+          },
+        },
+        reservationCustomer: {
+          include: {
+            country: {
+              select: { id: true, name: true, iso2: true, phoneCode: true },
+            },
+          },
+        },
+        transfers: {
+          include: {
+            serviceType: {
+              select: { id: true, name: true, code: true },
+            },
+            vehicle: true,
+            rate: { select: { id: true, price: true } },
+            originTransferPoint: true,
+            destinationTransferPoint: true,
+            transferStatus: { select: { id: true, name: true } },
+            airline: true,
+          },
+          orderBy: [{ serviceDate: 'asc' }, { serviceTime: 'asc' }],
+        },
+        payments: {
+          select: {
+            id: true,
+            paymentMethod: true,
+            provider: true,
+            providerStatus: true,
+            paymentStatus: true,
+            amount: true,
+            paymentDate: true,
+            expiresAt: true,
+            approvedAt: true,
+            capturedAt: true,
+            cancelledAt: true,
+            failedAt: true,
+            reference: true,
+            receiptFile: true,
+            notes: true,
+            createdAt: true,
+            updatedAt: true,
+            currency: { select: { id: true, name: true, code: true } },
+            createdBy: {
+              select: {
+                id: true,
+                username: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+        notes: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+
+    if (!reservation) {
+      throw new NotFoundException('Reservation not found');
+    }
+
+    return reservation;
+  }
+
+  async requote(id: number, dto: RequoteReservationDto) {
+    const reservation = await this.prisma.reservation.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        folio: true,
+        total: true,
+        currency: { select: { id: true, name: true, code: true } },
+        reservationStatus: {
+          select: { id: true, name: true, code: true },
+        },
+        transfers: {
+          select: {
+            rateId: true,
+            vehicle: { select: { id: true, name: true, code: true } },
+          },
+          orderBy: { id: 'asc' },
+        },
+      },
+    });
+
+    if (!reservation) {
+      throw new NotFoundException('Reservation not found');
+    }
+    if (reservation.reservationStatus.code === 'CANCELLED') {
+      throw new BadRequestException('A cancelled reservation cannot be requoted');
+    }
+    if (dto.originTransferPointId === dto.destinationTransferPointId) {
+      throw new BadRequestException(
+        'Origin and destination transfer points must be different',
+      );
+    }
+
+    const [currency, serviceType, origin, destination] = await Promise.all([
+      this.prisma.currency.findFirst({
+        where: { id: dto.currencyId, status: true },
+        select: { id: true, name: true, code: true },
+      }),
+      this.prisma.serviceType.findFirst({
+        where: { id: dto.serviceTypeId, status: true },
+        select: { id: true, name: true, code: true },
+      }),
+      this.prisma.transferPoint.findFirst({
+        where: { id: dto.originTransferPointId, status: true },
+        select: { id: true, name: true, code: true, zoneId: true },
+      }),
+      this.prisma.transferPoint.findFirst({
+        where: { id: dto.destinationTransferPointId, status: true },
+        select: { id: true, name: true, code: true, zoneId: true },
+      }),
+    ]);
+
+    if (!currency) throw new NotFoundException('Active currency not found');
+    if (!serviceType)
+      throw new NotFoundException('Active service type not found');
+    if (!origin)
+      throw new NotFoundException('Active origin transfer point not found');
+    if (!destination)
+      throw new NotFoundException('Active destination transfer point not found');
+    if (
+      serviceType.code !== ONE_WAY_SERVICE_CODE &&
+      serviceType.code !== ROUND_TRIP_SERVICE_CODE
+    ) {
+      throw new BadRequestException('Unsupported service type');
+    }
+
+    const rates = await this.prisma.rate.findMany({
+      where: {
+        originZoneId: origin.zoneId,
+        destinationZoneId: destination.zoneId,
+        currencyId: dto.currencyId,
+        serviceTypeId: dto.serviceTypeId,
+        status: true,
+        vehicle: {
+          status: true,
+          minPax: { lte: dto.passengers },
+          maxPax: { gte: dto.passengers },
+        },
+      },
+      select: {
+        id: true,
+        price: true,
+        vehicle: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            minPax: true,
+            maxPax: true,
+            luggageCapacity: true,
+            descriptionEs: true,
+            descriptionEn: true,
+            image: true,
+          },
+        },
+      },
+      orderBy: [{ price: 'asc' }, { vehicleId: 'asc' }],
+    });
+
+    return {
+      reservation: {
+        id: reservation.id,
+        folio: reservation.folio,
+        status: reservation.reservationStatus,
+      },
+      current: {
+        currency: reservation.currency,
+        total: reservation.total,
+        rateIds: [...new Set(reservation.transfers.map(({ rateId }) => rateId))],
+        vehicles: reservation.transfers.map(({ vehicle }) => vehicle),
+      },
+      quotation: {
+        currency,
+        serviceType,
+        origin: { id: origin.id, name: origin.name, code: origin.code },
+        destination: {
+          id: destination.id,
+          name: destination.name,
+          code: destination.code,
+        },
+        passengers: dto.passengers,
+        options: rates.map(({ id: rateId, price, vehicle }) => ({
+          rateId,
+          price,
+          vehicle,
+        })),
+      },
+    };
+  }
+
+  async update(id: number, dto: UpdateReservationDto) {
+    const current = await this.prisma.reservation.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        discount: true,
+        paidAmount: true,
+        reservationCustomerId: true,
+        reservationStatus: { select: { code: true } },
+        transfers: {
+          select: {
+            id: true,
+            transferStatusId: true,
+            transferGroupUuid: true,
+          },
+          orderBy: { id: 'asc' },
+        },
+      },
+    });
+
+    if (!current) {
+      throw new NotFoundException('Reservation not found');
+    }
+    if (current.reservationStatus.code === 'CANCELLED') {
+      throw new BadRequestException('A cancelled reservation cannot be updated');
+    }
+
+    const quotation = await this.quote(dto);
+    const selectedOption = quotation.options.find(
+      ({ rateId }) => rateId === dto.rateId,
+    );
+    if (!selectedOption) {
+      throw new BadRequestException(
+        'The selected rate is not available for this reservation',
+      );
+    }
+
+    const [points, initialTransferStatus] = await Promise.all([
+      this.prisma.transferPoint.findMany({
+        where: {
+          id: {
+            in: [dto.originTransferPointId, dto.destinationTransferPointId],
+          },
+        },
+        select: { id: true, type: true },
+      }),
+      current.transfers.length === 0 ||
+      (current.transfers.length < 2 &&
+        quotation.serviceType.code === ROUND_TRIP_SERVICE_CODE)
+        ? this.prisma.transferStatus.findFirst({
+            where: { id: INITIAL_TRANSFER_STATUS_ID, status: true },
+            select: { id: true },
+          })
+        : Promise.resolve(null),
+    ]);
+    const origin = points.find(({ id: pointId }) => {
+      return pointId === dto.originTransferPointId;
+    });
+    const destination = points.find(({ id: pointId }) => {
+      return pointId === dto.destinationTransferPointId;
+    });
+    if (!origin || !destination) {
+      throw new NotFoundException('Origin or destination transfer point not found');
+    }
+    if (
+      (current.transfers.length === 0 ||
+        (quotation.serviceType.code === ROUND_TRIP_SERVICE_CODE &&
+          current.transfers.length < 2)) &&
+      !initialTransferStatus
+    ) {
+      throw new NotFoundException(
+        `Active initial transfer status ${INITIAL_TRANSFER_STATUS_ID} not found`,
+      );
+    }
+
+    const outboundSegment = this.resolveSegment(
+      origin.type,
+      destination.type,
+      false,
+    );
+    const subtotal = selectedOption.price;
+    const calculatedTotal = subtotal.minus(current.discount);
+    const total = calculatedTotal.isNegative()
+      ? new Prisma.Decimal(0)
+      : calculatedTotal;
+    const calculatedPending = total.minus(current.paidAmount);
+    const pendingAmount = calculatedPending.isNegative()
+      ? new Prisma.Decimal(0)
+      : calculatedPending;
+    const transferGroupUuid =
+      current.transfers[0]?.transferGroupUuid ?? randomUUID();
+    const outboundData = {
+      serviceTypeId: dto.serviceTypeId,
+      vehicleId: selectedOption.vehicle.id,
+      rateId: dto.rateId,
+      originTransferPointId: dto.originTransferPointId,
+      destinationTransferPointId: dto.destinationTransferPointId,
+      segmentLeg: outboundSegment.leg,
+      segmentType: outboundSegment.type,
+      pickupDate: this.toDatabaseDate(dto.pickupDate),
+      pickupTime: this.toDatabaseTime(dto.pickupTime),
+      serviceDate: this.toDatabaseDate(dto.serviceDate),
+      serviceTime: this.toDatabaseTime(dto.serviceTime),
+      passengers: dto.passengers,
+      luggage: dto.luggage,
+      flightNumber: dto.flightNumber ?? null,
+      airlineId: dto.airlineId ?? null,
+    };
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.reservation.update({
+        where: { id },
+        data: {
+          currencyId: dto.currencyId,
+          subtotal,
+          total,
+          pendingAmount,
+        },
+      });
+
+      if (current.reservationCustomerId) {
+        await tx.reservationCustomer.update({
+          where: { id: current.reservationCustomerId },
+          data: {
+            firstName: dto.customer.firstName.trim(),
+            lastName: dto.customer.lastName.trim(),
+            email: dto.customer.email.trim().toLowerCase(),
+            phone: dto.customer.phone?.trim() ?? null,
+            countryId: dto.customer.countryId ?? null,
+          },
+        });
+      } else {
+        const customer = await tx.reservationCustomer.create({
+          data: {
+            firstName: dto.customer.firstName.trim(),
+            lastName: dto.customer.lastName.trim(),
+            email: dto.customer.email.trim().toLowerCase(),
+            phone: dto.customer.phone?.trim(),
+            countryId: dto.customer.countryId,
+          },
+          select: { id: true },
+        });
+        await tx.reservation.update({
+          where: { id },
+          data: { reservationCustomerId: customer.id },
+        });
+      }
+
+      const outboundTransfer = current.transfers[0];
+      if (outboundTransfer) {
+        await tx.reservationTransfer.update({
+          where: { id: outboundTransfer.id },
+          data: outboundData,
+        });
+      } else {
+        await tx.reservationTransfer.create({
+          data: {
+            ...outboundData,
+            reservationId: id,
+            transferGroupUuid,
+            transferStatusId: initialTransferStatus!.id,
+          },
+        });
+      }
+
+      const returnTransfer = current.transfers[1];
+      if (quotation.serviceType.code === ROUND_TRIP_SERVICE_CODE) {
+        const returnSegment = this.resolveSegment(
+          destination.type,
+          origin.type,
+          true,
+        );
+        const returnData = {
+          serviceTypeId: dto.serviceTypeId,
+          vehicleId: selectedOption.vehicle.id,
+          rateId: dto.rateId,
+          originTransferPointId: dto.destinationTransferPointId,
+          destinationTransferPointId: dto.originTransferPointId,
+          segmentLeg: returnSegment.leg,
+          segmentType: returnSegment.type,
+          pickupDate: this.toDatabaseDate(dto.returnPickupDate!),
+          pickupTime: this.toDatabaseTime(dto.returnPickupTime!),
+          serviceDate: this.toDatabaseDate(dto.returnServiceDate!),
+          serviceTime: this.toDatabaseTime(dto.returnServiceTime!),
+          passengers: dto.passengers,
+          luggage: dto.luggage,
+          flightNumber: dto.returnFlightNumber ?? null,
+          airlineId: dto.returnAirlineId ?? null,
+        };
+        if (returnTransfer) {
+          await tx.reservationTransfer.update({
+            where: { id: returnTransfer.id },
+            data: returnData,
+          });
+        } else {
+          await tx.reservationTransfer.create({
+            data: {
+              ...returnData,
+              reservationId: id,
+              transferGroupUuid,
+              transferStatusId: initialTransferStatus!.id,
+            },
+          });
+        }
+      } else if (returnTransfer) {
+        await tx.reservationTransfer.delete({
+          where: { id: returnTransfer.id },
+        });
+      }
+    });
+
+    return this.findOne(id);
   }
 
   async findTransfers(query: ListReservationTransfersDto) {

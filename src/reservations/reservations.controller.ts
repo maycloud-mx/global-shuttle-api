@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
@@ -8,6 +18,8 @@ import { ApiMessage } from '../http/api-message.decorator.js';
 import { CreateReservationDto } from './dto/create-reservation.dto.js';
 import { ListReservationTransfersDto } from './dto/list-reservation-transfers.dto.js';
 import { QuoteReservationDto } from './dto/quote-reservation.dto.js';
+import { RequoteReservationDto } from './dto/requote-reservation.dto.js';
+import { UpdateReservationDto } from './dto/update-reservation.dto.js';
 import { RESERVATION_PERMISSIONS } from './reservation-permissions.js';
 import { ReservationsService } from './reservations.service.js';
 
@@ -38,5 +50,32 @@ export class ReservationsController {
   @ApiMessage('Reservation transfers retrieved successfully')
   findTransfers(@Query() query: ListReservationTransfersDto) {
     return this.reservationsService.findTransfers(query);
+  }
+
+  @Post(':id/requote')
+  @RequirePermissions(RESERVATION_PERMISSIONS.REQUOTE)
+  @ApiMessage('Reservation requoted successfully')
+  requote(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: RequoteReservationDto,
+  ) {
+    return this.reservationsService.requote(id, dto);
+  }
+
+  @Patch(':id')
+  @RequirePermissions(RESERVATION_PERMISSIONS.UPDATE)
+  @ApiMessage('Reservation updated successfully')
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateReservationDto,
+  ) {
+    return this.reservationsService.update(id, dto);
+  }
+
+  @Get(':id')
+  @RequirePermissions(RESERVATION_PERMISSIONS.VIEW)
+  @ApiMessage('Reservation retrieved successfully')
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.reservationsService.findOne(id);
   }
 }
