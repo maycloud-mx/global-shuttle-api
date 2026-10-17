@@ -23,6 +23,14 @@ const transferPointInclude = {
   updatedBy: { select: userSelect },
 } as const;
 
+const DEFAULT_AIRPORT_TRANSFER_HOURS = 1.5;
+
+const transferPointOptionSelect = {
+  id: true,
+  name: true,
+  type: true,
+} as const;
+
 @Injectable()
 export class TransferPointsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -97,6 +105,69 @@ export class TransferPointsService {
       throw new NotFoundException('Transfer point not found');
     }
     return transferPoint;
+  }
+
+  async findOptions(originTransferPointId?: number) {
+    if (originTransferPointId === undefined) {
+      const transferPoints = await this.prisma.transferPoint.findMany({
+        where: { status: true },
+        select: transferPointOptionSelect,
+        orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      });
+
+      return transferPoints.map((transferPoint) => ({
+        ...transferPoint,
+        hours: null,
+      }));
+    }
+
+    const origin = await this.prisma.transferPoint.findFirst({
+      where: { id: originTransferPointId, status: true },
+      select: { id: true, type: true, zoneId: true },
+    });
+    if (!origin) {
+      throw new NotFoundException('Active origin transfer point not found');
+    }
+
+    if (origin.type !== TransferPointType.HOTEL) {
+      const transferPoints = await this.prisma.transferPoint.findMany({
+        where: {
+          status: true,
+          id: { not: origin.id },
+        },
+        select: transferPointOptionSelect,
+        orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      });
+
+      return transferPoints.map((transferPoint) => ({
+        ...transferPoint,
+        hours: null,
+      }));
+    }
+
+    const transferPoints = await this.prisma.transferPoint.findMany({
+      where: {
+        status: true,
+        id: { not: origin.id },
+      },
+      select: {
+        ...transferPointOptionSelect,
+        zoneTimes: {
+          where: { zoneId: origin.zoneId },
+          select: { hours: true },
+          take: 1,
+        },
+      },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+    });
+
+    return transferPoints.map(({ zoneTimes, ...transferPoint }) => ({
+      ...transferPoint,
+      hours:
+        transferPoint.type === TransferPointType.AIRPORT
+          ? Number(zoneTimes[0]?.hours ?? DEFAULT_AIRPORT_TRANSFER_HOURS)
+          : null,
+    }));
   }
 
   async findAirports() {

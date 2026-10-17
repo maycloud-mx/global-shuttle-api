@@ -13,10 +13,12 @@ import { ZonesModule } from './zones/zones.module.js';
 import { TransferPointsModule } from './transfer-points/transfer-points.module.js';
 import { RatesModule } from './rates/rates.module.js';
 import { ReservationsModule } from './reservations/reservations.module.js';
+import { MediaModule } from './media/media.module.js';
 
 @Module({
   imports: [
     PrismaModule,
+    MediaModule,
     HealthModule,
     AuthModule,
     UsersModule,

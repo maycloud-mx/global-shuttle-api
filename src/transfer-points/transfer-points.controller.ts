@@ -18,6 +18,7 @@ import { ApiMessage } from '../http/api-message.decorator.js';
 import { ChangeTransferPointStatusDto } from './dto/change-transfer-point-status.dto.js';
 import { CreateTransferPointDto } from './dto/create-transfer-point.dto.js';
 import { ListTransferPointsDto } from './dto/list-transfer-points.dto.js';
+import { TransferPointOptionsDto } from './dto/transfer-point-options.dto.js';
 import { UpdateTransferPointDto } from './dto/update-transfer-point.dto.js';
 import { TRANSFER_POINT_PERMISSIONS } from './transfer-point-permissions.js';
 import { TransferPointsService } from './transfer-points.service.js';
@@ -42,6 +43,15 @@ export class TransferPointsController {
   @ApiMessage('Transfer points retrieved successfully')
   findAll(@Query() query: ListTransferPointsDto) {
     return this.transferPointsService.findAll(query);
+  }
+
+  @Get('options')
+  @RequirePermissions(TRANSFER_POINT_PERMISSIONS.LIST)
+  @ApiMessage('Transfer point options retrieved successfully')
+  findOptions(@Query() query: TransferPointOptionsDto) {
+    return this.transferPointsService.findOptions(
+      query.originTransferPointId,
+    );
   }
 
   @Get('airports')

@@ -2,9 +2,12 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/index.js';
+import { MediaService } from '../media/media.service.js';
+import type { UploadedImage } from '../media/media.types.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { ChangeVehicleStatusDto } from './dto/change-vehicle-status.dto.js';
 import type { CreateVehicleDto } from './dto/create-vehicle.dto.js';
@@ -13,10 +16,25 @@ import type { UpdateVehicleDto } from './dto/update-vehicle.dto.js';
 
 @Injectable()
 export class VehiclesService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(VehiclesService.name);
 
-  async create(dto: CreateVehicleDto) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mediaService: MediaService,
+  ) {}
+
+  async create(dto: CreateVehicleDto, image?: Express.Multer.File) {
     this.validatePassengerRange(dto.minPax, dto.maxPax);
+    if (!image && dto.image?.trim()) {
+      throw new BadRequestException('Image must be uploaded as a file');
+    }
+
+    const uploadedImage = image
+      ? await this.mediaService.uploadImage(image.buffer, {
+          folder: 'vehiculos',
+        })
+      : undefined;
+
     try {
       return await this.prisma.vehicle.create({
         data: {
@@ -27,10 +45,17 @@ export class VehiclesService {
           luggageCapacity: dto.luggageCapacity,
           descriptionEs: dto.descriptionEs?.trim(),
           descriptionEn: dto.descriptionEn?.trim(),
-          image: dto.image?.trim(),
+          image: uploadedImage?.secureUrl,
+          imagePublicId: uploadedImage?.publicId,
         },
       });
     } catch (error) {
+      if (uploadedImage) {
+        await this.deleteImageSafely(
+          uploadedImage.publicId,
+          'rolling back a failed vehicle creation',
+        );
+      }
       this.handleUniqueConstraint(error);
       throw error;
     }
@@ -77,15 +102,46 @@ export class VehiclesService {
     return vehicle;
   }
 
-  async update(id: number, dto: UpdateVehicleDto) {
+  async update(
+    id: number,
+    dto: UpdateVehicleDto,
+    image?: Express.Multer.File,
+  ) {
     const current = await this.findOne(id);
     this.validatePassengerRange(
       dto.minPax ?? current.minPax,
       dto.maxPax ?? current.maxPax,
     );
 
+    let uploadedImage: UploadedImage | undefined;
+    let imageData: Pick<
+      Prisma.VehicleUpdateInput,
+      'image' | 'imagePublicId'
+    > = {};
+    let shouldDeletePreviousImage = false;
+
+    if (image) {
+      uploadedImage = await this.mediaService.uploadImage(image.buffer, {
+        folder: 'vehiculos',
+      });
+      imageData = {
+        image: uploadedImage.secureUrl,
+        imagePublicId: uploadedImage.publicId,
+      };
+      shouldDeletePreviousImage = true;
+    } else if (dto.image !== undefined) {
+      const requestedImage = dto.image.trim();
+
+      if (requestedImage === '') {
+        imageData = { image: null, imagePublicId: null };
+        shouldDeletePreviousImage = true;
+      } else if (requestedImage !== current.image) {
+        throw new BadRequestException('A replacement image must be uploaded');
+      }
+    }
+
     try {
-      return await this.prisma.vehicle.update({
+      const updated = await this.prisma.vehicle.update({
         where: { id },
         data: {
           name: dto.name?.trim(),
@@ -95,10 +151,25 @@ export class VehiclesService {
           luggageCapacity: dto.luggageCapacity,
           descriptionEs: dto.descriptionEs?.trim(),
           descriptionEn: dto.descriptionEn?.trim(),
-          image: dto.image?.trim(),
+          ...imageData,
         },
       });
+
+      if (shouldDeletePreviousImage && current.imagePublicId) {
+        await this.deleteImageSafely(
+          current.imagePublicId,
+          `cleaning up the previous image for vehicle ${id}`,
+        );
+      }
+
+      return updated;
     } catch (error) {
+      if (uploadedImage) {
+        await this.deleteImageSafely(
+          uploadedImage.publicId,
+          `rolling back a failed update for vehicle ${id}`,
+        );
+      }
       this.handleUniqueConstraint(error);
       throw error;
     }
@@ -134,6 +205,21 @@ export class VehiclesService {
       error.code === 'P2002'
     ) {
       throw new ConflictException('Vehicle name or code is already in use');
+    }
+  }
+
+  private async deleteImageSafely(
+    publicId: string,
+    context: string,
+  ): Promise<void> {
+    try {
+      await this.mediaService.deleteImage(publicId);
+    } catch (error) {
+      this.logger.warn(
+        `Cloudinary cleanup failed while ${context}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
     }
   }
 }

@@ -13,6 +13,9 @@ export interface EnvironmentVariables {
   DB_PASSWORD: string;
   JWT_SECRET: string;
   JWT_EXPIRES_IN_SECONDS: number;
+  CLOUDINARY_CLOUD_NAME: string;
+  CLOUDINARY_API_KEY: string;
+  CLOUDINARY_API_SECRET: string;
 }
 
 function requireString(
@@ -85,6 +88,9 @@ export function validateEnvironment(
     DB_PASSWORD: requireString(environment, 'DB_PASSWORD'),
     JWT_SECRET: requireString(environment, 'JWT_SECRET'),
     JWT_EXPIRES_IN_SECONDS: jwtExpiresInSeconds,
+    CLOUDINARY_CLOUD_NAME: requireString(environment, 'CLOUDINARY_CLOUD_NAME'),
+    CLOUDINARY_API_KEY: requireString(environment, 'CLOUDINARY_API_KEY'),
+    CLOUDINARY_API_SECRET: requireString(environment, 'CLOUDINARY_API_SECRET'),
   };
 }
 import { loadEnvFile } from 'node:process';

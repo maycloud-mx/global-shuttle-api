@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -7,8 +8,11 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { RequirePermissions } from '../auth/permissions.decorator.js';
 import { PermissionsGuard } from '../auth/permissions.guard.js';
@@ -20,16 +24,43 @@ import { UpdateVehicleDto } from './dto/update-vehicle.dto.js';
 import { VEHICLE_PERMISSIONS } from './vehicle-permissions.js';
 import { VehiclesService } from './vehicles.service.js';
 
+const VEHICLE_IMAGE_MAX_SIZE = 5 * 1024 * 1024;
+const ALLOWED_VEHICLE_IMAGE_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+]);
+
+const vehicleImageInterceptor = () =>
+  FileInterceptor('image', {
+    limits: { fileSize: VEHICLE_IMAGE_MAX_SIZE },
+    fileFilter: (_request, file, callback) => {
+      if (!ALLOWED_VEHICLE_IMAGE_TYPES.has(file.mimetype)) {
+        callback(
+          new BadRequestException('Image must be a JPEG, PNG, or WebP file'),
+          false,
+        );
+        return;
+      }
+
+      callback(null, true);
+    },
+  });
+
 @Controller('admin/vehicles')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class VehiclesController {
   constructor(private readonly vehiclesService: VehiclesService) {}
 
   @Post()
+  @UseInterceptors(vehicleImageInterceptor())
   @RequirePermissions(VEHICLE_PERMISSIONS.CREATE)
   @ApiMessage('Vehicle created successfully')
-  create(@Body() dto: CreateVehicleDto) {
-    return this.vehiclesService.create(dto);
+  create(
+    @Body() dto: CreateVehicleDto,
+    @UploadedFile() image?: Express.Multer.File,
+  ) {
+    return this.vehiclesService.create(dto, image);
   }
 
   @Get()
@@ -47,10 +78,15 @@ export class VehiclesController {
   }
 
   @Patch(':id')
+  @UseInterceptors(vehicleImageInterceptor())
   @RequirePermissions(VEHICLE_PERMISSIONS.UPDATE)
   @ApiMessage('Vehicle updated successfully')
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateVehicleDto) {
-    return this.vehiclesService.update(id, dto);
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateVehicleDto,
+    @UploadedFile() image?: Express.Multer.File,
+  ) {
+    return this.vehiclesService.update(id, dto, image);
   }
 
   @Patch(':id/status')

@@ -332,6 +332,7 @@ model Vehicle {
   descriptionEs        String?               @map("description_es") @db.Text
   descriptionEn        String?               @map("description_en") @db.Text
   image                String?               @db.Text
+  imagePublicId        String?               @map("image_public_id") @db.VarChar(255)
   status               Boolean               @default(true)
   createdAt            DateTime              @default(now()) @map("created_at")
   updatedAt            DateTime              @updatedAt @map("updated_at")
