@@ -19,6 +19,7 @@ const ROUND_TRIP_SERVICE_CODE = 'ROUND_TRIP';
 const CANCUN_UTC_OFFSET = '-05:00';
 const CANCUN_TIME_ZONE = 'America/Cancun';
 const QUOTATION_STATUS_CODE = 'QUOTATION';
+const CANCELLED_STATUS_CODE = 'CANCELLED';
 const INITIAL_TRANSFER_STATUS_ID = 1;
 
 const transferListSelect = {
@@ -1005,6 +1006,38 @@ export class ReservationsService {
     );
 
     return { reservationId: id, folio: reservation.folio, email };
+  }
+
+  async cancel(id: number) {
+    const reservation = await this.prisma.reservation.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        reservationStatus: { select: { code: true } },
+      },
+    });
+
+    if (!reservation) {
+      throw new NotFoundException('Reservation not found');
+    }
+    if (reservation.reservationStatus.code === CANCELLED_STATUS_CODE) {
+      return this.findOne(id);
+    }
+
+    const cancelledStatus = await this.prisma.reservationStatus.findFirst({
+      where: { code: CANCELLED_STATUS_CODE, status: true },
+      select: { id: true },
+    });
+    if (!cancelledStatus) {
+      throw new NotFoundException('Active cancelled reservation status not found');
+    }
+
+    await this.prisma.reservation.update({
+      where: { id },
+      data: { reservationStatusId: cancelledStatus.id },
+    });
+
+    return this.findOne(id);
   }
 
   async findTransfers(query: ListReservationTransfersDto) {

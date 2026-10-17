@@ -83,6 +83,13 @@ export class ReservationsController {
     return this.reservationsService.sendQuoteEmail(id, dto);
   }
 
+  @Patch(':id/cancel')
+  @RequirePermissions(RESERVATION_PERMISSIONS.CANCEL)
+  @ApiMessage('Reservation cancelled successfully')
+  cancel(@Param('id', ParseIntPipe) id: number) {
+    return this.reservationsService.cancel(id);
+  }
+
   @Get(':id')
   @RequirePermissions(RESERVATION_PERMISSIONS.VIEW)
   @ApiMessage('Reservation retrieved successfully')
