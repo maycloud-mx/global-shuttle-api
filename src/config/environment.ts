@@ -16,6 +16,13 @@ export interface EnvironmentVariables {
   CLOUDINARY_CLOUD_NAME: string;
   CLOUDINARY_API_KEY: string;
   CLOUDINARY_API_SECRET: string;
+  SMTP_HOST: string;
+  SMTP_PORT: number;
+  SMTP_SECURE: boolean;
+  SMTP_USER: string;
+  SMTP_PASSWORD: string;
+  SMTP_FROM_NAME: string;
+  SMTP_FROM_EMAIL: string;
 }
 
 function requireString(
@@ -29,9 +36,21 @@ function requireString(
   return value;
 }
 
-export function validateEnvironment(
-  environment: Record<string, unknown>,
-): EnvironmentVariables {
+function requireBoolean( environment: Record<string, unknown>, key: string): boolean {
+  const value = environment[key];
+
+  if (value === 'true' || value === true) {
+    return true;
+  }
+
+  if (value === 'false' || value === false) {
+    return false;
+  }
+
+  throw new Error(`${key} must be true or false`);
+}
+
+export function validateEnvironment(environment: Record<string, unknown>): EnvironmentVariables {
   const nodeEnvironmentValue = environment.NODE_ENV ?? 'development';
   if (typeof nodeEnvironmentValue !== 'string') {
     throw new Error('NODE_ENV must be a string');
@@ -77,6 +96,16 @@ export function validateEnvironment(
     throw new Error('JWT_EXPIRES_IN_SECONDS must be an integer of at least 60');
   }
 
+  const smtpPort = Number(environment.SMTP_PORT);
+
+  if (
+    !Number.isInteger(smtpPort) ||
+    smtpPort < 1 ||
+    smtpPort > 65_535
+  ) {
+    throw new Error('SMTP_PORT must be an integer between 1 and 65535');
+  }
+
   return {
     NODE_ENV: nodeEnvironment as NodeEnvironment,
     PORT: port,
@@ -91,6 +120,13 @@ export function validateEnvironment(
     CLOUDINARY_CLOUD_NAME: requireString(environment, 'CLOUDINARY_CLOUD_NAME'),
     CLOUDINARY_API_KEY: requireString(environment, 'CLOUDINARY_API_KEY'),
     CLOUDINARY_API_SECRET: requireString(environment, 'CLOUDINARY_API_SECRET'),
+    SMTP_HOST: requireString(environment, 'SMTP_HOST'),
+    SMTP_PORT: smtpPort,
+    SMTP_SECURE: requireBoolean(environment, 'SMTP_SECURE'),
+    SMTP_USER: requireString(environment, 'SMTP_USER'),
+    SMTP_PASSWORD: requireString(environment, 'SMTP_PASSWORD'),
+    SMTP_FROM_NAME: requireString(environment, 'SMTP_FROM_NAME'),
+    SMTP_FROM_EMAIL: requireString(environment, 'SMTP_FROM_EMAIL'),
   };
 }
 import { loadEnvFile } from 'node:process';

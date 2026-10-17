@@ -16,6 +16,7 @@ import { ReservationsModule } from './reservations/reservations.module.js';
 import { MediaModule } from './media/media.module.js';
 import { CountriesModule } from './countries/countries.module.js';
 import { AirlinesModule } from './airlines/airlines.module.js';
+import { EmailModule } from './email/email.module.js';
 
 @Module({
   imports: [
@@ -33,7 +34,8 @@ import { AirlinesModule } from './airlines/airlines.module.js';
     RatesModule,
     ReservationsModule,
     CountriesModule,
-    AirlinesModule
+    AirlinesModule,
+    EmailModule
   ],
   controllers: [AppController],
   providers: [AppService],
