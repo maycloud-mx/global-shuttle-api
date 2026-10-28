@@ -17,6 +17,7 @@ import { MediaModule } from './media/media.module.js';
 import { CountriesModule } from './countries/countries.module.js';
 import { AirlinesModule } from './airlines/airlines.module.js';
 import { EmailModule } from './email/email.module.js';
+import { PublicModule } from './public/public.module.js';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { EmailModule } from './email/email.module.js';
     CountriesModule,
     AirlinesModule,
     EmailModule,
+    PublicModule,
   ],
   controllers: [AppController],
   providers: [AppService],

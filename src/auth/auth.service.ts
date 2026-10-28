@@ -1,11 +1,9 @@
 import {
-  ConflictException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { compare, hash } from 'bcryptjs';
-import { randomBytes } from 'node:crypto';
+import { compare } from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { loadEnvironment } from '../config/environment.js';
 import type { LoginDto } from './dto/login.dto.js';
@@ -34,51 +32,6 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
   ) {}
-
-  async createBootstrapUser() {
-    const userCount = await this.prisma.user.count();
-    if (userCount > 0) {
-      throw new ConflictException(
-        'Bootstrap user cannot be created because a user already exists',
-      );
-    }
-
-    const temporaryPassword = randomBytes(18).toString('base64url');
-    const passwordHash = await hash(temporaryPassword, 12);
-    const role = await this.prisma.role.upsert({
-      where: { code: 'DEMO' },
-      update: { isActive: true },
-      create: {
-        code: 'DEMO',
-        name: 'Demo',
-        description: 'Development-only login role',
-      },
-    });
-    const user = await this.prisma.user.create({
-      data: {
-        roleId: role.id,
-        email: 'admin@globalshuttle.local',
-        username: 'admin',
-        passwordHash,
-        firstName: 'Admin',
-        lastName: 'Global Shuttle',
-      },
-      select: {
-        id: true,
-        email: true,
-        username: true,
-        firstName: true,
-        lastName: true,
-      },
-    });
-
-    return {
-      user,
-      temporaryPassword,
-      loginEndpoint: '/api/v1/auth/login',
-      warning: 'Save this password now; it will not be shown again',
-    };
-  }
 
   async login(dto: LoginDto) {
     const identifier = dto.identifier.trim();

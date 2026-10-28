@@ -59,16 +59,8 @@ Las credenciales se guardan en `.env`, nunca en el repositorio.
 ## Autenticacion
 
 Las contrasenas deben almacenarse como hashes bcrypt en `users.password_hash`.
-Cuando la tabla de usuarios esta vacia, genera el primer usuario con:
-
-```http
-POST /api/v1/auth/bootstrap-user
-```
-
-La respuesta contiene el correo, usuario y una `temporaryPassword`. Guardala en
-ese momento porque no vuelve a mostrarse. El endpoint funciona en produccion,
-pero se bloquea con `409 Conflict` tan pronto existe un usuario. El rol `DEMO`
-se crea sin permisos y posteriormente puede configurarse desde la base de datos.
+El primer usuario debe aprovisionarse directamente mediante un proceso
+administrativo seguro; la API no expone un endpoint publico para crearlo.
 
 En desarrollo, despues de registrar los catalogos de menus y acciones, asigna
 todas sus combinaciones al rol del usuario con `username` igual a `admin`:
@@ -105,6 +97,44 @@ Usa `JwtAuthGuard` en endpoints protegidos. Para exigir permisos agrega tambien
 `PermissionsGuard` y `@RequirePermissions('menu-code:action-code')`. El usuario,
 rol y permisos se consultan en cada peticion autenticada, por lo que los cambios
 de autorizacion se aplican inmediatamente.
+
+## Catalogos publicos
+
+El formulario del sitio web puede consultar los catalogos activos sin JWT:
+
+```http
+GET /api/v1/public/currencies
+GET /api/v1/public/service-types
+GET /api/v1/public/countries
+GET /api/v1/public/airlines
+GET /api/v1/public/transfer-points
+GET /api/v1/public/transfer-points?originTransferPointId=1
+```
+
+Cuando se proporciona un origen, la respuesta de puntos de traslado excluye ese
+punto y agrega `hours` cuando aplica para calcular los horarios del formulario.
+Estos endpoints solo exponen campos necesarios para el sitio web.
+
+Para obtener las opciones de vehiculo, moneda y tarifa disponibles:
+
+```http
+POST /api/v1/public/quotes/options
+Content-Type: application/json
+
+{
+  "serviceTypeId": 1,
+  "originTransferPointId": 155,
+  "destinationTransferPointId": 1,
+  "passengers": 2,
+  "luggage": 2
+}
+```
+
+Las fechas y los datos personales no forman parte de esta consulta. Se validan
+posteriormente al crear la reservacion. El cliente debe conservar el `rateId`
+de la opcion elegida; el servidor volvera a validar su disponibilidad y precio.
+La cantidad de maletas se conserva como dato informativo y no filtra vehiculos
+ni modifica la tarifa.
 
 Todas las respuestas HTTP tienen una envoltura comun con `success`,
 `statusCode`, `message`, `timestamp` y `path`. Las respuestas exitosas agregan

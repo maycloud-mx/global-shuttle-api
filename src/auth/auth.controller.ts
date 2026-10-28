@@ -10,12 +10,6 @@ import type { AuthenticatedUser } from './auth.types.js';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Post('bootstrap-user')
-  @ApiMessage('Initial user generated successfully')
-  createBootstrapUser() {
-    return this.authService.createBootstrapUser();
-  }
-
   @Post('login')
   @ApiMessage('Login successful')
   login(@Body() dto: LoginDto) {
