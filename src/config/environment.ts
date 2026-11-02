@@ -11,6 +11,11 @@ export interface EnvironmentVariables {
   DB_DATABASE: string;
   DB_USERNAME: string;
   DB_PASSWORD: string;
+  EXTERNAL_DB_HOST: string;
+  EXTERNAL_DB_PORT: number;
+  EXTERNAL_DB_DATABASE: string;
+  EXTERNAL_DB_USERNAME: string;
+  EXTERNAL_DB_PASSWORD: string;
   JWT_SECRET: string;
   JWT_EXPIRES_IN_SECONDS: number;
   CLOUDINARY_CLOUD_NAME: string;
@@ -92,6 +97,15 @@ export function validateEnvironment(environment: Record<string, unknown>): Envir
     throw new Error('DB_PORT must be an integer between 1 and 65535');
   }
 
+  const externalDatabasePort = Number(environment.EXTERNAL_DB_PORT ?? 3306);
+  if (
+    !Number.isInteger(externalDatabasePort) ||
+    externalDatabasePort < 1 ||
+    externalDatabasePort > 65_535
+  ) {
+    throw new Error('EXTERNAL_DB_PORT must be an integer between 1 and 65535');
+  }
+
   const jwtExpiresInSeconds = Number(
     environment.JWT_EXPIRES_IN_SECONDS ?? 28_800,
   );
@@ -118,6 +132,11 @@ export function validateEnvironment(environment: Record<string, unknown>): Envir
     DB_DATABASE: requireString(environment, 'DB_DATABASE'),
     DB_USERNAME: requireString(environment, 'DB_USERNAME'),
     DB_PASSWORD: requireString(environment, 'DB_PASSWORD'),
+    EXTERNAL_DB_HOST: requireString(environment, 'EXTERNAL_DB_HOST'),
+    EXTERNAL_DB_PORT: externalDatabasePort,
+    EXTERNAL_DB_DATABASE: requireString(environment, 'EXTERNAL_DB_DATABASE'),
+    EXTERNAL_DB_USERNAME: requireString(environment, 'EXTERNAL_DB_USERNAME'),
+    EXTERNAL_DB_PASSWORD: requireString(environment, 'EXTERNAL_DB_PASSWORD'),
     JWT_SECRET: requireString(environment, 'JWT_SECRET'),
     JWT_EXPIRES_IN_SECONDS: jwtExpiresInSeconds,
     CLOUDINARY_CLOUD_NAME: requireString(environment, 'CLOUDINARY_CLOUD_NAME'),

@@ -1,9 +1,12 @@
 import {
+  BadGatewayException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { createConnection, type RowDataPacket } from 'mysql2/promise';
 import { Prisma, TransferPointType } from '../generated/prisma/index.js';
+import { loadEnvironment } from '../config/environment.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { ChangeTransferPointStatusDto } from './dto/change-transfer-point-status.dto.js';
 import type { CreateTransferPointDto } from './dto/create-transfer-point.dto.js';
@@ -30,6 +33,16 @@ const transferPointOptionSelect = {
   name: true,
   type: true,
 } as const;
+
+interface ExternalHotelRow extends RowDataPacket {
+  zoneId: number;
+  name: string;
+  code: string;
+  codeExternal: string | number;
+  latitude: string | number | null;
+  longitude: string | number | null;
+  status: number | boolean;
+}
 
 @Injectable()
 export class TransferPointsService {
@@ -179,6 +192,119 @@ export class TransferPointsService {
       include: transferPointInclude,
       orderBy: [{ name: 'asc' }, { id: 'asc' }],
     });
+  }
+
+  async syncHotels(userId: number) {
+    const config = loadEnvironment();
+    let connection;
+
+    try {
+      connection = await createConnection({
+        host: config.EXTERNAL_DB_HOST,
+        port: config.EXTERNAL_DB_PORT,
+        database: config.EXTERNAL_DB_DATABASE,
+        user: config.EXTERNAL_DB_USERNAME,
+        password: config.EXTERNAL_DB_PASSWORD,
+        charset: 'utf8mb4',
+        connectTimeout: 10_000,
+      });
+
+      const [hotels] = await connection.query<ExternalHotelRow[]>(`
+        SELECT
+          zone_id AS zoneId,
+          name,
+          code,
+          code_external AS codeExternal,
+          latitude,
+          longitude,
+          status
+        FROM transfer_points
+        WHERE LOWER(type) = 'hotel'
+          AND code_external IS NOT NULL
+        ORDER BY id
+      `);
+
+      const zones = await this.prisma.zone.findMany({
+        where: { codeExternal: { not: null } },
+        select: { id: true, codeExternal: true },
+      });
+      const zoneByExternalId = new Map(
+        zones.map((zone) => [zone.codeExternal!, zone.id]),
+      );
+      const externalCodes = hotels.map((hotel) => String(hotel.codeExternal));
+      const existingHotels = await this.prisma.transferPoint.findMany({
+        where: {
+          type: TransferPointType.HOTEL,
+          codeExternal: { in: externalCodes },
+        },
+        select: { id: true, codeExternal: true },
+      });
+      const existingByExternalCode = new Map(
+        existingHotels.map((hotel) => [hotel.codeExternal!, hotel.id]),
+      );
+
+      let inserted = 0;
+      let updated = 0;
+      let skipped = 0;
+      const missingZoneExternalIds = new Set<number>();
+
+      await this.prisma.$transaction(async (transaction) => {
+        for (const hotel of hotels) {
+          const zoneId = zoneByExternalId.get(String(hotel.zoneId));
+          if (zoneId === undefined) {
+            skipped++;
+            missingZoneExternalIds.add(hotel.zoneId);
+            continue;
+          }
+
+          const codeExternal = String(hotel.codeExternal);
+          const data = {
+            zoneId,
+            name: hotel.name.trim(),
+            code: hotel.code.trim(),
+            codeExternal,
+            type: TransferPointType.HOTEL,
+            latitude: hotel.latitude === null ? null : Number(hotel.latitude),
+            longitude:
+              hotel.longitude === null ? null : Number(hotel.longitude),
+            status: Boolean(hotel.status),
+          };
+          const existingId = existingByExternalCode.get(codeExternal);
+
+          if (existingId !== undefined) {
+            await transaction.transferPoint.update({
+              where: { id: existingId },
+              data: { ...data, updatedById: userId },
+            });
+            updated++;
+          } else {
+            const created = await transaction.transferPoint.create({
+              data: { ...data, createdById: userId },
+              select: { id: true },
+            });
+            existingByExternalCode.set(codeExternal, created.id);
+            inserted++;
+          }
+        }
+      });
+
+      return {
+        found: hotels.length,
+        inserted,
+        updated,
+        skipped,
+        missingZoneExternalIds: [...missingZoneExternalIds].sort(
+          (first, second) => first - second,
+        ),
+      };
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) throw error;
+      throw new BadGatewayException(
+        'Could not synchronize hotels from the external database',
+      );
+    } finally {
+      await connection?.end();
+    }
   }
 
   async update(id: number, dto: UpdateTransferPointDto, userId: number) {

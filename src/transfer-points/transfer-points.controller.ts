@@ -61,6 +61,13 @@ export class TransferPointsController {
     return this.transferPointsService.findAirports();
   }
 
+  @Post('sync-hotels')
+  @RequirePermissions(TRANSFER_POINT_PERMISSIONS.UPDATE)
+  @ApiMessage('Hotels synchronized successfully')
+  syncHotels(@CurrentUser() user: AuthenticatedUser) {
+    return this.transferPointsService.syncHotels(user.id);
+  }
+
   @Get(':id')
   @RequirePermissions(TRANSFER_POINT_PERMISSIONS.VIEW)
   @ApiMessage('Transfer point retrieved successfully')
