@@ -48,6 +48,13 @@ export class RolesController {
     return this.rolesService.getPermissionCatalog();
   }
 
+  @Get('options')
+  @RequirePermissions(ROLE_PERMISSIONS.LIST)
+  @ApiMessage('Role options retrieved successfully')
+  findOptions() {
+    return this.rolesService.findOptions();
+  }
+
   @Get(':id')
   @RequirePermissions(ROLE_PERMISSIONS.VIEW)
   @ApiMessage('Role retrieved successfully')
