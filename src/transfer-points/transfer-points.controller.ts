@@ -61,6 +61,13 @@ export class TransferPointsController {
     return this.transferPointsService.findAirports();
   }
 
+  @Get('external-db-health')
+  @RequirePermissions(TRANSFER_POINT_PERMISSIONS.LIST)
+  @ApiMessage('External database connection verified successfully')
+  checkExternalDatabase() {
+    return this.transferPointsService.checkExternalDatabase();
+  }
+
   @Post('sync-hotels')
   @RequirePermissions(TRANSFER_POINT_PERMISSIONS.UPDATE)
   @ApiMessage('Hotels synchronized successfully')

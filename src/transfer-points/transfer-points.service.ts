@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { createConnection, type RowDataPacket } from 'mysql2/promise';
 import { Prisma, TransferPointType } from '../generated/prisma/index.js';
@@ -27,6 +28,8 @@ const transferPointInclude = {
 } as const;
 
 const DEFAULT_AIRPORT_TRANSFER_HOURS = 1.5;
+const HOTEL_SYNC_BATCH_SIZE = 100;
+const HOTEL_SYNC_TRANSACTION_TIMEOUT_MS = 60_000;
 
 const transferPointOptionSelect = {
   id: true,
@@ -194,11 +197,41 @@ export class TransferPointsService {
     });
   }
 
-  async syncHotels(userId: number) {
-    const config = loadEnvironment();
+  async checkExternalDatabase() {
+    const startedAt = Date.now();
     let connection;
 
     try {
+      const config = loadEnvironment();
+      connection = await createConnection({
+        host: config.EXTERNAL_DB_HOST,
+        port: config.EXTERNAL_DB_PORT,
+        database: config.EXTERNAL_DB_DATABASE,
+        user: config.EXTERNAL_DB_USERNAME,
+        password: config.EXTERNAL_DB_PASSWORD,
+        charset: 'utf8mb4',
+        connectTimeout: 10_000,
+      });
+      await connection.query('SELECT 1');
+
+      return {
+        connected: true,
+        latencyMs: Date.now() - startedAt,
+      };
+    } catch {
+      throw new ServiceUnavailableException(
+        'Could not connect to the external database',
+      );
+    } finally {
+      await connection?.end();
+    }
+  }
+
+  async syncHotels(userId: number) {
+    let connection;
+
+    try {
+      const config = loadEnvironment();
       connection = await createConnection({
         host: config.EXTERNAL_DB_HOST,
         port: config.EXTERNAL_DB_PORT,
@@ -231,68 +264,114 @@ export class TransferPointsService {
       const zoneByExternalId = new Map(
         zones.map((zone) => [zone.codeExternal!, zone.id]),
       );
-      const externalCodes = hotels.map((hotel) => String(hotel.codeExternal));
-      const existingHotels = await this.prisma.transferPoint.findMany({
-        where: {
-          type: TransferPointType.HOTEL,
-          codeExternal: { in: externalCodes },
+      const existingTransferPoints = await this.prisma.transferPoint.findMany({
+        select: {
+          zoneId: true,
+          name: true,
+          code: true,
+          codeExternal: true,
+          type: true,
         },
-        select: { id: true, codeExternal: true },
       });
-      const existingByExternalCode = new Map(
-        existingHotels.map((hotel) => [hotel.codeExternal!, hotel.id]),
+      const existingExternalCodes = new Set(
+        existingTransferPoints
+          .filter(
+            (point) =>
+              point.type === TransferPointType.HOTEL &&
+              point.codeExternal !== null,
+          )
+          .map((point) => point.codeExternal!),
+      );
+      const existingCodes = new Set(
+        existingTransferPoints.map((point) => point.code.trim().toLowerCase()),
+      );
+      const existingZoneNames = new Set(
+        existingTransferPoints.map((point) =>
+          this.buildZoneNameKey(point.zoneId, point.name),
+        ),
       );
 
+      const hotelsToInsert: Array<{
+        hotel: ExternalHotelRow;
+        zoneId: number;
+      }> = [];
+      let skippedExisting = 0;
       let inserted = 0;
-      let updated = 0;
-      let skipped = 0;
+      let skippedMissingZone = 0;
       const missingZoneExternalIds = new Set<number>();
 
-      await this.prisma.$transaction(async (transaction) => {
-        for (const hotel of hotels) {
-          const zoneId = zoneByExternalId.get(String(hotel.zoneId));
-          if (zoneId === undefined) {
-            skipped++;
-            missingZoneExternalIds.add(hotel.zoneId);
-            continue;
-          }
-
-          const codeExternal = String(hotel.codeExternal);
-          const data = {
-            zoneId,
-            name: hotel.name.trim(),
-            code: hotel.code.trim(),
-            codeExternal,
-            type: TransferPointType.HOTEL,
-            latitude: hotel.latitude === null ? null : Number(hotel.latitude),
-            longitude:
-              hotel.longitude === null ? null : Number(hotel.longitude),
-            status: Boolean(hotel.status),
-          };
-          const existingId = existingByExternalCode.get(codeExternal);
-
-          if (existingId !== undefined) {
-            await transaction.transferPoint.update({
-              where: { id: existingId },
-              data: { ...data, updatedById: userId },
-            });
-            updated++;
-          } else {
-            const created = await transaction.transferPoint.create({
-              data: { ...data, createdById: userId },
-              select: { id: true },
-            });
-            existingByExternalCode.set(codeExternal, created.id);
-            inserted++;
-          }
+      for (const hotel of hotels) {
+        const zoneId = zoneByExternalId.get(String(hotel.zoneId));
+        if (zoneId === undefined) {
+          skippedMissingZone++;
+          missingZoneExternalIds.add(hotel.zoneId);
+          continue;
         }
-      });
+
+        const codeExternal = String(hotel.codeExternal);
+        const normalizedCode = hotel.code.trim().toLowerCase();
+        const zoneNameKey = this.buildZoneNameKey(zoneId, hotel.name);
+        if (
+          existingExternalCodes.has(codeExternal) ||
+          existingCodes.has(normalizedCode) ||
+          existingZoneNames.has(zoneNameKey)
+        ) {
+          skippedExisting++;
+          continue;
+        }
+
+        hotelsToInsert.push({ hotel, zoneId });
+        existingExternalCodes.add(codeExternal);
+        existingCodes.add(normalizedCode);
+        existingZoneNames.add(zoneNameKey);
+      }
+
+      for (
+        let offset = 0;
+        offset < hotelsToInsert.length;
+        offset += HOTEL_SYNC_BATCH_SIZE
+      ) {
+        const batch = hotelsToInsert.slice(
+          offset,
+          offset + HOTEL_SYNC_BATCH_SIZE,
+        );
+
+        await this.prisma.$transaction(
+          async (transaction) => {
+            for (const { hotel, zoneId } of batch) {
+              const codeExternal = String(hotel.codeExternal);
+              const data = {
+                zoneId,
+                name: hotel.name.trim(),
+                code: hotel.code.trim(),
+                codeExternal,
+                type: TransferPointType.HOTEL,
+                latitude:
+                  hotel.latitude === null ? null : Number(hotel.latitude),
+                longitude:
+                  hotel.longitude === null ? null : Number(hotel.longitude),
+                status: Boolean(hotel.status),
+              };
+              await transaction.transferPoint.create({
+                data: { ...data, createdById: userId },
+              });
+              inserted++;
+            }
+          },
+          {
+            maxWait: 10_000,
+            timeout: HOTEL_SYNC_TRANSACTION_TIMEOUT_MS,
+          },
+        );
+      }
 
       return {
         found: hotels.length,
         inserted,
-        updated,
-        skipped,
+        updated: 0,
+        skipped: skippedExisting + skippedMissingZone,
+        skippedExisting,
+        skippedMissingZone,
         missingZoneExternalIds: [...missingZoneExternalIds].sort(
           (first, second) => first - second,
         ),
@@ -305,6 +384,10 @@ export class TransferPointsService {
     } finally {
       await connection?.end();
     }
+  }
+
+  private buildZoneNameKey(zoneId: number, name: string): string {
+    return `${zoneId}:${name.trim().toLowerCase()}`;
   }
 
   async update(id: number, dto: UpdateTransferPointDto, userId: number) {
