@@ -1,7 +1,18 @@
-import { Type } from 'class-transformer';
-import { IsInt, IsNumber, Min } from 'class-validator';
 
-export class CreateRateDto {
+import { Type } from 'class-transformer';
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsBoolean,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  Min,
+  ValidateNested,
+} from 'class-validator';
+
+export class UpsertRateGridItemDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
@@ -31,4 +42,17 @@ export class CreateRateDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   price: number;
+
+  @IsOptional()
+  @IsBoolean()
+  status?: boolean;
+}
+
+export class UpsertRatesGridDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => UpsertRateGridItemDto)
+  items: UpsertRateGridItemDto[];
 }

@@ -1,25 +1,17 @@
+
 import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsInt, IsOptional, Max, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsOptional,
+  Min,
+} from 'class-validator';
 
-export class ListRatesDto {
-  @IsOptional()
+export class ListRatesGridDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  page = 1;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(100)
-  limit = 20;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  originZoneId?: number;
+  zoneId: number;
 
   @IsOptional()
   @Type(() => Number)
@@ -37,13 +29,13 @@ export class ListRatesDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  currencyId?: number;
+  serviceTypeId?: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  serviceTypeId?: number;
+  currencyId?: number;
 
   @IsOptional()
   @Transform(({ value }) => {
