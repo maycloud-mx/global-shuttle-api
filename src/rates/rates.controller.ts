@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Post,
   Put,
   Query,
   UseGuards,
@@ -18,9 +19,11 @@ import { ApiMessage } from '../http/api-message.decorator.js';
 import { ListRatesGridDto } from './dto/list-rates-grid.dto.js';
 import { UpsertRatesGridDto } from './dto/upsert-rates-grid.dto.js';
 import { ListRateCoverageZonesDto } from './dto/list-rate-coverage-zones.dto.js';
+import { BulkUpsertRatesDto } from './dto/bulk-upsert-rates.dto.js';
 
 import { RATE_PERMISSIONS } from './rate-permissions.js';
 import { RatesService } from './rates.service.js';
+import { RatesBulkService } from './rates-bulk.service.js';
 import { RatesCoverageService } from './rates-coverage.service.js';
 
 @Controller('admin/rates')
@@ -28,6 +31,7 @@ import { RatesCoverageService } from './rates-coverage.service.js';
 export class RatesController {
   constructor(
     private readonly ratesService: RatesService,
+    private readonly ratesBulkService: RatesBulkService,
     private readonly ratesCoverageService: RatesCoverageService,
   ) {}
 
@@ -46,6 +50,19 @@ export class RatesController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.ratesService.saveGrid(dto, user.id);
+  }
+
+  @Post('bulk')
+  @RequirePermissions(RATE_PERMISSIONS.UPDATE)
+  @ApiMessage('Bulk rates saved successfully')
+  upsertBulk(
+    @Body() dto: BulkUpsertRatesDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.ratesBulkService.upsertBulk(
+      dto,
+      user.id,
+    );
   }
 
   @Get('coverage')
