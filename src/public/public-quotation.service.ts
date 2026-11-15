@@ -67,7 +67,6 @@ export class PublicQuotationService {
           select: {
             id: true,
             name: true,
-            code: true,
             minPax: true,
             maxPax: true,
             luggageCapacity: true,

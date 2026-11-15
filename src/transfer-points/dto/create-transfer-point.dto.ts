@@ -5,7 +5,6 @@ import {
   IsNumber,
   IsOptional,
   IsString,
-  Matches,
   Max,
   MaxLength,
   Min,
@@ -23,12 +22,6 @@ export class CreateTransferPointDto {
   @MinLength(1)
   @MaxLength(150)
   name: string;
-
-  @IsString()
-  @MinLength(2)
-  @MaxLength(200)
-  @Matches(/^[A-Za-z0-9_-]+$/)
-  code: string;
 
   @IsOptional()
   @IsString()

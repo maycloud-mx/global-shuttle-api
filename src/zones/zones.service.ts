@@ -27,7 +27,6 @@ const zoneInclude = {
           id: true,
           zoneId: true,
           name: true,
-          code: true,
           codeExternal: true,
           type: true,
           latitude: true,

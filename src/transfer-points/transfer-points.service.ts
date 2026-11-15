@@ -40,7 +40,6 @@ const transferPointOptionSelect = {
 interface ExternalHotelRow extends RowDataPacket {
   zoneId: number;
   name: string;
-  code: string;
   codeExternal: string | number;
   latitude: string | number | null;
   longitude: string | number | null;
@@ -58,7 +57,6 @@ export class TransferPointsService {
         data: {
           zoneId: dto.zoneId,
           name: dto.name.trim(),
-          code: dto.code.trim().toUpperCase(),
           codeExternal: dto.codeExternal?.trim(),
           type: dto.type,
           latitude: dto.latitude,
@@ -83,7 +81,6 @@ export class TransferPointsService {
         ? {
             OR: [
               { name: { contains: search } },
-              { code: { contains: search } },
               { codeExternal: { contains: search } },
             ],
           }
@@ -246,7 +243,6 @@ export class TransferPointsService {
         SELECT
           zone_id AS zoneId,
           name,
-          code,
           code_external AS codeExternal,
           latitude,
           longitude,
@@ -268,7 +264,6 @@ export class TransferPointsService {
         select: {
           zoneId: true,
           name: true,
-          code: true,
           codeExternal: true,
           type: true,
         },
@@ -281,9 +276,6 @@ export class TransferPointsService {
               point.codeExternal !== null,
           )
           .map((point) => point.codeExternal!),
-      );
-      const existingCodes = new Set(
-        existingTransferPoints.map((point) => point.code.trim().toLowerCase()),
       );
       const existingZoneNames = new Set(
         existingTransferPoints.map((point) =>
@@ -309,11 +301,9 @@ export class TransferPointsService {
         }
 
         const codeExternal = String(hotel.codeExternal);
-        const normalizedCode = hotel.code.trim().toLowerCase();
         const zoneNameKey = this.buildZoneNameKey(zoneId, hotel.name);
         if (
           existingExternalCodes.has(codeExternal) ||
-          existingCodes.has(normalizedCode) ||
           existingZoneNames.has(zoneNameKey)
         ) {
           skippedExisting++;
@@ -322,7 +312,6 @@ export class TransferPointsService {
 
         hotelsToInsert.push({ hotel, zoneId });
         existingExternalCodes.add(codeExternal);
-        existingCodes.add(normalizedCode);
         existingZoneNames.add(zoneNameKey);
       }
 
@@ -343,7 +332,6 @@ export class TransferPointsService {
               const data = {
                 zoneId,
                 name: hotel.name.trim(),
-                code: hotel.code.trim(),
                 codeExternal,
                 type: TransferPointType.HOTEL,
                 latitude:
@@ -400,7 +388,6 @@ export class TransferPointsService {
         data: {
           zoneId: dto.zoneId,
           name: dto.name?.trim(),
-          code: dto.code?.trim().toUpperCase(),
           codeExternal: dto.codeExternal?.trim(),
           type: dto.type,
           latitude: dto.latitude,
@@ -452,7 +439,7 @@ export class TransferPointsService {
       error.code === 'P2002'
     ) {
       throw new ConflictException(
-        'Transfer point code or zone/name combination is already in use',
+        'Transfer point zone/name combination is already in use',
       );
     }
   }

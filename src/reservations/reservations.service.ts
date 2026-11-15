@@ -95,11 +95,11 @@ export class ReservationsService {
         }),
         this.prisma.transferPoint.findFirst({
           where: { id: dto.originTransferPointId, status: true },
-          select: { id: true, name: true, code: true, zoneId: true },
+          select: { id: true, name: true, zoneId: true },
         }),
         this.prisma.transferPoint.findFirst({
           where: { id: dto.destinationTransferPointId, status: true },
-          select: { id: true, name: true, code: true, zoneId: true },
+          select: { id: true, name: true, zoneId: true },
         }),
         dto.airlineId
           ? this.prisma.airline.findFirst({
@@ -157,7 +157,6 @@ export class ReservationsService {
           select: {
             id: true,
             name: true,
-            code: true,
             minPax: true,
             maxPax: true,
             luggageCapacity: true,
@@ -183,12 +182,10 @@ export class ReservationsService {
       origin: {
         id: origin.id,
         name: origin.name,
-        code: origin.code,
       },
       destination: {
         id: destination.id,
         name: destination.name,
-        code: destination.code,
       },
       passengers: dto.passengers,
       luggage: dto.luggage,
@@ -204,12 +201,10 @@ export class ReservationsService {
               origin: {
                 id: destination.id,
                 name: destination.name,
-                code: destination.code,
               },
               destination: {
                 id: origin.id,
                 name: origin.name,
-                code: origin.code,
               },
               serviceDate: dto.returnServiceDate,
               serviceTime: dto.returnServiceTime,
@@ -637,11 +632,11 @@ export class ReservationsService {
       }),
       this.prisma.transferPoint.findFirst({
         where: { id: dto.originTransferPointId, status: true },
-        select: { id: true, name: true, code: true, zoneId: true },
+        select: { id: true, name: true, zoneId: true },
       }),
       this.prisma.transferPoint.findFirst({
         where: { id: dto.destinationTransferPointId, status: true },
-        select: { id: true, name: true, code: true, zoneId: true },
+        select: { id: true, name: true, zoneId: true },
       }),
     ]);
 
@@ -679,7 +674,6 @@ export class ReservationsService {
           select: {
             id: true,
             name: true,
-            code: true,
             minPax: true,
             maxPax: true,
             luggageCapacity: true,
@@ -707,11 +701,10 @@ export class ReservationsService {
       quotation: {
         currency,
         serviceType,
-        origin: { id: origin.id, name: origin.name, code: origin.code },
+        origin: { id: origin.id, name: origin.name },
         destination: {
           id: destination.id,
           name: destination.name,
-          code: destination.code,
         },
         passengers: dto.passengers,
         options: rates.map(({ id: rateId, price, vehicle }) => ({

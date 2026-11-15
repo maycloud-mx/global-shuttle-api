@@ -375,7 +375,6 @@ model TransferPoint {
   id                              Int                     @id @default(autoincrement()) @db.UnsignedInt
   zoneId                          Int                     @map("zone_id") @db.UnsignedInt
   name                            String                  @db.VarChar(150)
-  code                            String                  @unique @db.VarChar(200)
   codeExternal                    String?                 @map("code_external") @db.VarChar(100)
   type                            TransferPointType
   latitude                        Decimal?                @db.Decimal(10, 7)
