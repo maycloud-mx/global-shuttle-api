@@ -3,7 +3,6 @@ import {
   IsInt,
   IsOptional,
   IsString,
-  Matches,
   MaxLength,
   Min,
   MinLength,
@@ -14,12 +13,6 @@ export class CreateVehicleDto {
   @MinLength(1)
   @MaxLength(100)
   name: string;
-
-  @IsString()
-  @MinLength(2)
-  @MaxLength(50)
-  @Matches(/^[A-Za-z0-9_-]+$/)
-  code: string;
 
   @Type(() => Number)
   @IsInt()

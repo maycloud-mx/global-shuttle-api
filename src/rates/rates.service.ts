@@ -20,7 +20,7 @@ const userSelect = {
 const rateInclude = {
   originZone: { select: { id: true, name: true, code: true } },
   destinationZone: { select: { id: true, name: true, code: true } },
-  vehicle: { select: { id: true, name: true, code: true } },
+  vehicle: { select: { id: true, name: true } },
   currency: { select: { id: true, name: true, code: true } },
   serviceType: { select: { id: true, name: true, code: true } },
   createdBy: { select: userSelect },

@@ -607,7 +607,7 @@ export class ReservationsService {
         transfers: {
           select: {
             rateId: true,
-            vehicle: { select: { id: true, name: true, code: true } },
+            vehicle: { select: { id: true, name: true } },
           },
           orderBy: { id: 'asc' },
         },

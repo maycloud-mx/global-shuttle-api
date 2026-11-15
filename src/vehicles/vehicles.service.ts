@@ -39,7 +39,6 @@ export class VehiclesService {
       return await this.prisma.vehicle.create({
         data: {
           name: dto.name.trim(),
-          code: dto.code.trim().toUpperCase(),
           minPax: dto.minPax,
           maxPax: dto.maxPax,
           luggageCapacity: dto.luggageCapacity,
@@ -67,10 +66,7 @@ export class VehiclesService {
       status: query.status,
       ...(search
         ? {
-            OR: [
-              { name: { contains: search } },
-              { code: { contains: search } },
-            ],
+            name: { contains: search },
           }
         : {}),
     };
@@ -145,7 +141,6 @@ export class VehiclesService {
         where: { id },
         data: {
           name: dto.name?.trim(),
-          code: dto.code?.trim().toUpperCase(),
           minPax: dto.minPax,
           maxPax: dto.maxPax,
           luggageCapacity: dto.luggageCapacity,
@@ -204,7 +199,7 @@ export class VehiclesService {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
-      throw new ConflictException('Vehicle name or code is already in use');
+      throw new ConflictException('Vehicle name is already in use');
     }
   }
 

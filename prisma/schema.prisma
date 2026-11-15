@@ -326,7 +326,6 @@ model ServiceType {
 model Vehicle {
   id                   Int                   @id @default(autoincrement()) @db.UnsignedInt
   name                 String                @unique @db.VarChar(100)
-  code                 String                @unique @db.VarChar(50)
   minPax               Int                   @map("min_pax") @db.UnsignedInt
   maxPax               Int                   @map("max_pax") @db.UnsignedInt
   luggageCapacity      Int                   @map("luggage_capacity") @db.UnsignedInt
