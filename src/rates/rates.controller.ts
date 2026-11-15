@@ -21,11 +21,17 @@ import { ListRatesDto } from './dto/list-rates.dto.js';
 import { UpdateRateDto } from './dto/update-rate.dto.js';
 import { RATE_PERMISSIONS } from './rate-permissions.js';
 import { RatesService } from './rates.service.js';
+import { RatesCoverageService } from './rates-coverage.service.js';
 
 @Controller('admin/rates')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class RatesController {
-  constructor(private readonly ratesService: RatesService) {}
+  
+constructor(
+  private readonly ratesService: RatesService,
+  private readonly ratesCoverageService: RatesCoverageService,
+) {}
+
 
   @Post()
   @RequirePermissions(RATE_PERMISSIONS.CREATE)
@@ -40,6 +46,15 @@ export class RatesController {
   findAll(@Query() query: ListRatesDto) {
     return this.ratesService.findAll(query);
   }
+
+
+  @Get('coverage')
+  @RequirePermissions(RATE_PERMISSIONS.LIST)
+  @ApiMessage('Rate coverage retrieved successfully')
+  getCoverage() {
+    return this.ratesCoverageService.getSummary();
+  }
+
 
   @Get(':id')
   @RequirePermissions(RATE_PERMISSIONS.VIEW)
