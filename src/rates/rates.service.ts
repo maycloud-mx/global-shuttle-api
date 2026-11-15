@@ -1,4 +1,3 @@
-
 import {
   BadRequestException,
   ConflictException,
@@ -54,9 +53,7 @@ const rateInclude = {
 
 @Injectable()
 export class RatesService {
-  constructor(
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async getGrid(query: ListRatesGridDto) {
     const originZone = await this.prisma.zone.findFirst({
@@ -72,133 +69,121 @@ export class RatesService {
     });
 
     if (!originZone) {
-      throw new NotFoundException(
-        'Origin zone not found or inactive',
-      );
+      throw new NotFoundException('Origin zone not found or inactive');
     }
 
-    const [
-      destinations,
-      vehicles,
-      currencies,
-      serviceTypes,
-      rates,
-    ] = await Promise.all([
-      this.prisma.zone.findMany({
-        where: {
-          status: true,
-          ...(query.destinationZoneId !== undefined
-            ? { id: query.destinationZoneId }
-            : {}),
-        },
-        select: {
-          id: true,
-          name: true,
-          code: true,
-        },
-        orderBy: {
-          name: 'asc',
-        },
-      }),
+    const [destinations, vehicles, currencies, serviceTypes, rates] =
+      await Promise.all([
+        this.prisma.zone.findMany({
+          where: {
+            status: true,
+            ...(query.destinationZoneId !== undefined
+              ? { id: query.destinationZoneId }
+              : {}),
+          },
+          select: {
+            id: true,
+            name: true,
+            code: true,
+          },
+          orderBy: {
+            name: 'asc',
+          },
+        }),
 
-      this.prisma.vehicle.findMany({
-        where: {
-          status: true,
-          ...(query.vehicleId !== undefined
-            ? { id: query.vehicleId }
-            : {}),
-        },
-        select: {
-          id: true,
-          name: true,
-        },
-        orderBy: {
-          name: 'asc',
-        },
-      }),
+        this.prisma.vehicle.findMany({
+          where: {
+            status: true,
+            ...(query.vehicleId !== undefined ? { id: query.vehicleId } : {}),
+          },
+          select: {
+            id: true,
+            name: true,
+          },
+          orderBy: {
+            name: 'asc',
+          },
+        }),
 
-      this.prisma.currency.findMany({
-        where: {
-          status: true,
-          ...(query.currencyId !== undefined
-            ? { id: query.currencyId }
-            : {}),
-        },
-        select: {
-          id: true,
-          name: true,
-          code: true,
-        },
-        orderBy: {
-          id: 'asc',
-        },
-      }),
+        this.prisma.currency.findMany({
+          where: {
+            status: true,
+            ...(query.currencyId !== undefined ? { id: query.currencyId } : {}),
+          },
+          select: {
+            id: true,
+            name: true,
+            code: true,
+          },
+          orderBy: {
+            id: 'asc',
+          },
+        }),
 
-      this.prisma.serviceType.findMany({
-        where: {
-          status: true,
-          ...(query.serviceTypeId !== undefined
-            ? { id: query.serviceTypeId }
-            : {}),
-        },
-        select: {
-          id: true,
-          name: true,
-          code: true,
-        },
-        orderBy: {
-          id: 'asc',
-        },
-      }),
+        this.prisma.serviceType.findMany({
+          where: {
+            status: true,
+            ...(query.serviceTypeId !== undefined
+              ? { id: query.serviceTypeId }
+              : {}),
+          },
+          select: {
+            id: true,
+            name: true,
+            code: true,
+          },
+          orderBy: {
+            id: 'asc',
+          },
+        }),
 
-      this.prisma.rate.findMany({
-        where: {
-          originZoneId: query.zoneId,
+        this.prisma.rate.findMany({
+          where: {
+            originZoneId: query.zoneId,
 
-          ...(query.destinationZoneId !== undefined
-            ? {
-                destinationZoneId:
-                  query.destinationZoneId,
-              }
-            : {}),
+            ...(query.destinationZoneId !== undefined
+              ? {
+                  destinationZoneId: query.destinationZoneId,
+                }
+              : {}),
 
-          ...(query.vehicleId !== undefined
-            ? { vehicleId: query.vehicleId }
-            : {}),
+            ...(query.vehicleId !== undefined
+              ? { vehicleId: query.vehicleId }
+              : {}),
 
-          ...(query.currencyId !== undefined
-            ? { currencyId: query.currencyId }
-            : {}),
+            ...(query.currencyId !== undefined
+              ? { currencyId: query.currencyId }
+              : {}),
 
-          ...(query.serviceTypeId !== undefined
-            ? { serviceTypeId: query.serviceTypeId }
-            : {}),
+            ...(query.serviceTypeId !== undefined
+              ? { serviceTypeId: query.serviceTypeId }
+              : {}),
 
-          destinationZone: {
+            destinationZone: {
+              status: true,
+            },
+            vehicle: {
+              status: true,
+            },
+            currency: {
+              status: true,
+            },
+            serviceType: {
+              status: true,
+            },
+          },
+          select: {
+            id: true,
+            originZoneId: true,
+            destinationZoneId: true,
+            vehicleId: true,
+            currencyId: true,
+            serviceTypeId: true,
+            price: true,
             status: true,
           },
-          vehicle: {
-            status: true,
-          },
-          currency: {
-            status: true,
-          },
-          serviceType: {
-            status: true,
-          },
-        },
-        select: {
-          id: true,
-          originZoneId: true,
-          destinationZoneId: true,
-          vehicleId: true,
-          currencyId: true,
-          serviceTypeId: true,
-          price: true,
-          status: true,
-        },
-      }),
-    ]);
+        }),
+      ]);
 
     const createKey = (
       destinationZoneId: number,
@@ -206,18 +191,12 @@ export class RatesService {
       currencyId: number,
       serviceTypeId: number,
     ): string => {
-      return [
-        destinationZoneId,
-        vehicleId,
-        currencyId,
-        serviceTypeId,
-      ].join(':');
+      return [destinationZoneId, vehicleId, currencyId, serviceTypeId].join(
+        ':',
+      );
     };
 
-    const ratesMap = new Map<
-      string,
-      (typeof rates)[number]
-    >();
+    const ratesMap = new Map<string, (typeof rates)[number]>();
 
     for (const rate of rates) {
       const key = createKey(
@@ -230,40 +209,39 @@ export class RatesService {
       ratesMap.set(key, rate);
     }
 
-    const allItems = destinations.flatMap(
-      (destination) =>
-        vehicles.flatMap((vehicle) =>
-          currencies.flatMap((currency) =>
-            serviceTypes.map((serviceType) => {
-              const key = createKey(
-                destination.id,
-                vehicle.id,
-                currency.id,
-                serviceType.id,
-              );
+    const allItems = destinations.flatMap((destination) =>
+      vehicles.flatMap((vehicle) =>
+        currencies.flatMap((currency) =>
+          serviceTypes.map((serviceType) => {
+            const key = createKey(
+              destination.id,
+              vehicle.id,
+              currency.id,
+              serviceType.id,
+            );
 
-              const rate = ratesMap.get(key);
+            const rate = ratesMap.get(key);
 
-              return {
-                id: rate?.id ?? null,
+            return {
+              id: rate?.id ?? null,
 
-                originZoneId: originZone.id,
-                destinationZoneId: destination.id,
-                vehicleId: vehicle.id,
-                currencyId: currency.id,
-                serviceTypeId: serviceType.id,
+              originZoneId: originZone.id,
+              destinationZoneId: destination.id,
+              vehicleId: vehicle.id,
+              currencyId: currency.id,
+              serviceTypeId: serviceType.id,
 
-                destinationZone: destination,
-                vehicle,
-                currency,
-                serviceType,
+              destinationZone: destination,
+              vehicle,
+              currency,
+              serviceType,
 
-                price: rate?.price ?? null,
-                status: rate?.status ?? null,
-              };
-            }),
-          ),
+              price: rate?.price ?? null,
+              status: rate?.status ?? null,
+            };
+          }),
         ),
+      ),
     );
 
     // El estado se filtra después de generar
@@ -272,9 +250,7 @@ export class RatesService {
     const items =
       query.status === undefined
         ? allItems
-        : allItems.filter(
-            (item) => item.status === query.status,
-          );
+        : allItems.filter((item) => item.status === query.status);
 
     let configured = 0;
     let inactive = 0;
@@ -293,17 +269,12 @@ export class RatesService {
     const expected = items.length;
     const pending = missing + inactive;
 
-    const calculatePercentage = (
-      value: number,
-    ): number | null => {
+    const calculatePercentage = (value: number): number | null => {
       if (expected === 0) {
         return null;
       }
 
-      return (
-        Math.round((value / expected) * 10000) /
-        100
-      );
+      return Math.round((value / expected) * 10000) / 100;
     };
 
     return {
@@ -315,24 +286,17 @@ export class RatesService {
         pending,
         missing,
         inactive,
-        coveragePercentage:
-          calculatePercentage(configured),
-        pendingPercentage:
-          calculatePercentage(pending),
+        coveragePercentage: calculatePercentage(configured),
+        pendingPercentage: calculatePercentage(pending),
       },
 
       items,
     };
   }
 
-  async saveGrid(
-    dto: UpsertRatesGridDto,
-    userId: number,
-  ) {
+  async saveGrid(dto: UpsertRatesGridDto, userId: number) {
     if (!dto.items?.length) {
-      throw new BadRequestException(
-        'At least one rate is required',
-      );
+      throw new BadRequestException('At least one rate is required');
     }
 
     this.ensureSingleOriginZone(dto.items);
@@ -348,20 +312,19 @@ export class RatesService {
           for (const item of dto.items) {
             const rate = await tx.rate.upsert({
               where: {
-                originZoneId_destinationZoneId_vehicleId_currencyId_serviceTypeId: {
-                  originZoneId: item.originZoneId,
-                  destinationZoneId:
-                    item.destinationZoneId,
-                  vehicleId: item.vehicleId,
-                  currencyId: item.currencyId,
-                  serviceTypeId: item.serviceTypeId,
-                },
+                originZoneId_destinationZoneId_vehicleId_currencyId_serviceTypeId:
+                  {
+                    originZoneId: item.originZoneId,
+                    destinationZoneId: item.destinationZoneId,
+                    vehicleId: item.vehicleId,
+                    currencyId: item.currencyId,
+                    serviceTypeId: item.serviceTypeId,
+                  },
               },
 
               create: {
                 originZoneId: item.originZoneId,
-                destinationZoneId:
-                  item.destinationZoneId,
+                destinationZoneId: item.destinationZoneId,
                 vehicleId: item.vehicleId,
                 currencyId: item.currencyId,
                 serviceTypeId: item.serviceTypeId,
@@ -395,10 +358,7 @@ export class RatesService {
         items,
       };
     } catch (error) {
-      if (
-        error instanceof
-        Prisma.PrismaClientKnownRequestError
-      ) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2002') {
           throw new ConflictException(
             'A rate already exists for this combination',
@@ -416,26 +376,19 @@ export class RatesService {
     }
   }
 
-  private ensureSingleOriginZone(
-    items: UpsertRateGridItemDto[],
-  ): void {
+  private ensureSingleOriginZone(items: UpsertRateGridItemDto[]): void {
     const originZoneId = items[0].originZoneId;
 
     const hasDifferentOrigin = items.some(
-      (item) =>
-        item.originZoneId !== originZoneId,
+      (item) => item.originZoneId !== originZoneId,
     );
 
     if (hasDifferentOrigin) {
-      throw new BadRequestException(
-        'All rates must have the same origin zone',
-      );
+      throw new BadRequestException('All rates must have the same origin zone');
     }
   }
 
-  private ensureUniqueCombinations(
-    items: UpsertRateGridItemDto[],
-  ): void {
+  private ensureUniqueCombinations(items: UpsertRateGridItemDto[]): void {
     const combinations = new Set<string>();
 
     for (const item of items) {
@@ -462,37 +415,19 @@ export class RatesService {
   ): Promise<void> {
     const zoneIds = [
       ...new Set(
-        items.flatMap((item) => [
-          item.originZoneId,
-          item.destinationZoneId,
-        ]),
+        items.flatMap((item) => [item.originZoneId, item.destinationZoneId]),
       ),
     ];
 
-    const vehicleIds = [
-      ...new Set(
-        items.map((item) => item.vehicleId),
-      ),
-    ];
+    const vehicleIds = [...new Set(items.map((item) => item.vehicleId))];
 
-    const currencyIds = [
-      ...new Set(
-        items.map((item) => item.currencyId),
-      ),
-    ];
+    const currencyIds = [...new Set(items.map((item) => item.currencyId))];
 
     const serviceTypeIds = [
-      ...new Set(
-        items.map((item) => item.serviceTypeId),
-      ),
+      ...new Set(items.map((item) => item.serviceTypeId)),
     ];
 
-    const [
-      zones,
-      vehicles,
-      currencies,
-      serviceTypes,
-    ] = await Promise.all([
+    const [zones, vehicles, currencies, serviceTypes] = await Promise.all([
       this.prisma.zone.findMany({
         where: {
           id: {

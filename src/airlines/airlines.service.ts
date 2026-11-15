@@ -14,9 +14,7 @@ import type { UpdateAirlineDto } from './dto/update-airline.dto.js';
 
 @Injectable()
 export class AirlinesService {
-  constructor(
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async create(dto: CreateAirlineDto) {
     try {
@@ -54,10 +52,7 @@ export class AirlinesService {
     const [items, total] = await this.prisma.$transaction([
       this.prisma.airline.findMany({
         where,
-        orderBy: [
-          { name: 'asc' },
-          { id: 'asc' },
-        ],
+        orderBy: [{ name: 'asc' }, { id: 'asc' }],
         skip,
         take: query.limit,
       }),
@@ -113,10 +108,7 @@ export class AirlinesService {
     }
   }
 
-  async changeStatus(
-    id: number,
-    dto: ChangeAirlineStatusDto,
-  ) {
+  async changeStatus(id: number, dto: ChangeAirlineStatusDto) {
     await this.ensureAirlineExists(id);
 
     return this.prisma.airline.update({
@@ -127,9 +119,7 @@ export class AirlinesService {
     });
   }
 
-  private async ensureAirlineExists(
-    id: number,
-  ): Promise<void> {
+  private async ensureAirlineExists(id: number): Promise<void> {
     const airline = await this.prisma.airline.findUnique({
       where: { id },
       select: { id: true },

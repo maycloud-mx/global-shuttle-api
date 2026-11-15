@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { Prisma } from '../generated/prisma/index.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -85,41 +89,41 @@ export class ReservationsService {
       returnAirline,
       country,
     ] = await Promise.all([
-        this.prisma.currency.findFirst({
-          where: { id: dto.currencyId, status: true },
-          select: { id: true, name: true, code: true },
-        }),
-        this.prisma.serviceType.findFirst({
-          where: { id: dto.serviceTypeId, status: true },
-          select: { id: true, name: true, code: true },
-        }),
-        this.prisma.transferPoint.findFirst({
-          where: { id: dto.originTransferPointId, status: true },
-          select: { id: true, name: true, zoneId: true },
-        }),
-        this.prisma.transferPoint.findFirst({
-          where: { id: dto.destinationTransferPointId, status: true },
-          select: { id: true, name: true, zoneId: true },
-        }),
-        dto.airlineId
-          ? this.prisma.airline.findFirst({
-              where: { id: dto.airlineId, status: true },
-              select: { id: true, name: true, iataCode: true, icaoCode: true },
-            })
-          : Promise.resolve(null),
-        dto.returnAirlineId
-          ? this.prisma.airline.findFirst({
-              where: { id: dto.returnAirlineId, status: true },
-              select: { id: true, name: true, iataCode: true, icaoCode: true },
-            })
-          : Promise.resolve(null),
-        dto.customer.countryId
-          ? this.prisma.country.findFirst({
-              where: { id: dto.customer.countryId, status: true },
-              select: { id: true, name: true, iso2: true, phoneCode: true },
-            })
-          : Promise.resolve(null),
-      ]);
+      this.prisma.currency.findFirst({
+        where: { id: dto.currencyId, status: true },
+        select: { id: true, name: true, code: true },
+      }),
+      this.prisma.serviceType.findFirst({
+        where: { id: dto.serviceTypeId, status: true },
+        select: { id: true, name: true, code: true },
+      }),
+      this.prisma.transferPoint.findFirst({
+        where: { id: dto.originTransferPointId, status: true },
+        select: { id: true, name: true, zoneId: true },
+      }),
+      this.prisma.transferPoint.findFirst({
+        where: { id: dto.destinationTransferPointId, status: true },
+        select: { id: true, name: true, zoneId: true },
+      }),
+      dto.airlineId
+        ? this.prisma.airline.findFirst({
+            where: { id: dto.airlineId, status: true },
+            select: { id: true, name: true, iataCode: true, icaoCode: true },
+          })
+        : Promise.resolve(null),
+      dto.returnAirlineId
+        ? this.prisma.airline.findFirst({
+            where: { id: dto.returnAirlineId, status: true },
+            select: { id: true, name: true, iataCode: true, icaoCode: true },
+          })
+        : Promise.resolve(null),
+      dto.customer.countryId
+        ? this.prisma.country.findFirst({
+            where: { id: dto.customer.countryId, status: true },
+            select: { id: true, name: true, iso2: true, phoneCode: true },
+          })
+        : Promise.resolve(null),
+    ]);
 
     if (!currency) throw new NotFoundException('Active currency not found');
     if (!serviceType)
@@ -127,7 +131,9 @@ export class ReservationsService {
     if (!origin)
       throw new NotFoundException('Active origin transfer point not found');
     if (!destination)
-      throw new NotFoundException('Active destination transfer point not found');
+      throw new NotFoundException(
+        'Active destination transfer point not found',
+      );
     if (dto.airlineId && !airline)
       throw new NotFoundException('Active airline not found');
     if (dto.returnAirlineId && !returnAirline)
@@ -252,7 +258,9 @@ export class ReservationsService {
       }),
     ]);
     if (!reservationStatus) {
-      throw new NotFoundException('Active quotation reservation status not found');
+      throw new NotFoundException(
+        'Active quotation reservation status not found',
+      );
     }
     if (!transferStatus) {
       throw new NotFoundException(
@@ -265,7 +273,9 @@ export class ReservationsService {
       ({ id }) => id === dto.destinationTransferPointId,
     );
     if (!origin || !destination) {
-      throw new NotFoundException('Origin or destination transfer point not found');
+      throw new NotFoundException(
+        'Origin or destination transfer point not found',
+      );
     }
 
     const outboundSegment = this.resolveSegment(
@@ -274,31 +284,32 @@ export class ReservationsService {
       false,
     );
     const transferGroupUuid = randomUUID();
-    const transfers: Prisma.ReservationTransferCreateWithoutReservationInput[] = [
-      {
-        serviceType: { connect: { id: dto.serviceTypeId } },
-        vehicle: { connect: { id: selectedOption.vehicle.id } },
-        rate: { connect: { id: dto.rateId } },
-        originTransferPoint: { connect: { id: dto.originTransferPointId } },
-        destinationTransferPoint: {
-          connect: { id: dto.destinationTransferPointId },
+    const transfers: Prisma.ReservationTransferCreateWithoutReservationInput[] =
+      [
+        {
+          serviceType: { connect: { id: dto.serviceTypeId } },
+          vehicle: { connect: { id: selectedOption.vehicle.id } },
+          rate: { connect: { id: dto.rateId } },
+          originTransferPoint: { connect: { id: dto.originTransferPointId } },
+          destinationTransferPoint: {
+            connect: { id: dto.destinationTransferPointId },
+          },
+          segmentLeg: outboundSegment.leg,
+          segmentType: outboundSegment.type,
+          transferGroupUuid,
+          pickupDate: this.toDatabaseDate(dto.pickupDate),
+          pickupTime: this.toDatabaseTime(dto.pickupTime),
+          serviceDate: this.toDatabaseDate(dto.serviceDate),
+          serviceTime: this.toDatabaseTime(dto.serviceTime),
+          passengers: dto.passengers,
+          luggage: dto.luggage,
+          flightNumber: dto.flightNumber,
+          airline: dto.airlineId
+            ? { connect: { id: dto.airlineId } }
+            : undefined,
+          transferStatus: { connect: { id: transferStatus.id } },
         },
-        segmentLeg: outboundSegment.leg,
-        segmentType: outboundSegment.type,
-        transferGroupUuid,
-        pickupDate: this.toDatabaseDate(dto.pickupDate),
-        pickupTime: this.toDatabaseTime(dto.pickupTime),
-        serviceDate: this.toDatabaseDate(dto.serviceDate),
-        serviceTime: this.toDatabaseTime(dto.serviceTime),
-        passengers: dto.passengers,
-        luggage: dto.luggage,
-        flightNumber: dto.flightNumber,
-        airline: dto.airlineId
-          ? { connect: { id: dto.airlineId } }
-          : undefined,
-        transferStatus: { connect: { id: transferStatus.id } },
-      },
-    ];
+      ];
 
     if (quotation.serviceType.code === ROUND_TRIP_SERVICE_CODE) {
       const returnSegment = this.resolveSegment(
@@ -393,7 +404,9 @@ export class ReservationsService {
     if (originType === 'HOTEL' && destinationType === 'HOTEL') {
       return { leg: isReturn ? 'LLEGADA' : 'SALIDA', type: 'HH' };
     }
-    throw new BadRequestException('Airport-to-airport transfers are not supported');
+    throw new BadRequestException(
+      'Airport-to-airport transfers are not supported',
+    );
   }
 
   private toDatabaseDate(date: string): Date {
@@ -613,7 +626,9 @@ export class ReservationsService {
       throw new NotFoundException('Reservation not found');
     }
     if (reservation.reservationStatus.code === 'CANCELLED') {
-      throw new BadRequestException('A cancelled reservation cannot be requoted');
+      throw new BadRequestException(
+        'A cancelled reservation cannot be requoted',
+      );
     }
     if (dto.originTransferPointId === dto.destinationTransferPointId) {
       throw new BadRequestException(
@@ -646,7 +661,9 @@ export class ReservationsService {
     if (!origin)
       throw new NotFoundException('Active origin transfer point not found');
     if (!destination)
-      throw new NotFoundException('Active destination transfer point not found');
+      throw new NotFoundException(
+        'Active destination transfer point not found',
+      );
     if (
       serviceType.code !== ONE_WAY_SERVICE_CODE &&
       serviceType.code !== ROUND_TRIP_SERVICE_CODE
@@ -695,7 +712,9 @@ export class ReservationsService {
       current: {
         currency: reservation.currency,
         total: reservation.total,
-        rateIds: [...new Set(reservation.transfers.map(({ rateId }) => rateId))],
+        rateIds: [
+          ...new Set(reservation.transfers.map(({ rateId }) => rateId)),
+        ],
         vehicles: reservation.transfers.map(({ vehicle }) => vehicle),
       },
       quotation: {
@@ -740,7 +759,9 @@ export class ReservationsService {
       throw new NotFoundException('Reservation not found');
     }
     if (current.reservationStatus.code === 'CANCELLED') {
-      throw new BadRequestException('A cancelled reservation cannot be updated');
+      throw new BadRequestException(
+        'A cancelled reservation cannot be updated',
+      );
     }
 
     const quotation = await this.quote(dto);
@@ -778,7 +799,9 @@ export class ReservationsService {
       return pointId === dto.destinationTransferPointId;
     });
     if (!origin || !destination) {
-      throw new NotFoundException('Origin or destination transfer point not found');
+      throw new NotFoundException(
+        'Origin or destination transfer point not found',
+      );
     }
     if (
       (current.transfers.length === 0 ||
@@ -1022,7 +1045,9 @@ export class ReservationsService {
       select: { id: true },
     });
     if (!cancelledStatus) {
-      throw new NotFoundException('Active cancelled reservation status not found');
+      throw new NotFoundException(
+        'Active cancelled reservation status not found',
+      );
     }
 
     await this.prisma.reservation.update({

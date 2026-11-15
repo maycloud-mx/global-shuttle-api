@@ -49,9 +49,7 @@ export class TransferPointsController {
   @RequirePermissions(TRANSFER_POINT_PERMISSIONS.LIST)
   @ApiMessage('Transfer point options retrieved successfully')
   findOptions(@Query() query: TransferPointOptionsDto) {
-    return this.transferPointsService.findOptions(
-      query.originTransferPointId,
-    );
+    return this.transferPointsService.findOptions(query.originTransferPointId);
   }
 
   @Get('airports')

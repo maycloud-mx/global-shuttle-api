@@ -1,4 +1,3 @@
-
 import {
   Body,
   Controller,
@@ -6,8 +5,12 @@ import {
   Post,
   Put,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+
+import { FileInterceptor } from '@nestjs/platform-express';
 
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
@@ -24,6 +27,7 @@ import { BulkUpsertRatesDto } from './dto/bulk-upsert-rates.dto.js';
 import { RATE_PERMISSIONS } from './rate-permissions.js';
 import { RatesService } from './rates.service.js';
 import { RatesBulkService } from './rates-bulk.service.js';
+import { RatesImportService } from './rates-import.service.js';
 import { RatesCoverageService } from './rates-coverage.service.js';
 
 @Controller('admin/rates')
@@ -32,6 +36,7 @@ export class RatesController {
   constructor(
     private readonly ratesService: RatesService,
     private readonly ratesBulkService: RatesBulkService,
+    private readonly ratesImportService: RatesImportService,
     private readonly ratesCoverageService: RatesCoverageService,
   ) {}
 
@@ -59,10 +64,38 @@ export class RatesController {
     @Body() dto: BulkUpsertRatesDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.ratesBulkService.upsertBulk(
-      dto,
-      user.id,
-    );
+    return this.ratesBulkService.upsertBulk(dto, user.id);
+  }
+
+  @Post('import/preview')
+  @RequirePermissions(RATE_PERMISSIONS.UPDATE)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: {
+        fileSize: 5 * 1024 * 1024,
+      },
+    }),
+  )
+  @ApiMessage('Rate import preview retrieved successfully')
+  previewImport(@UploadedFile() file: Express.Multer.File) {
+    return this.ratesImportService.preview(file);
+  }
+
+  @Post('import/apply')
+  @RequirePermissions(RATE_PERMISSIONS.UPDATE)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: {
+        fileSize: 5 * 1024 * 1024,
+      },
+    }),
+  )
+  @ApiMessage('Rates imported successfully')
+  applyImport(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.ratesImportService.apply(file, user.id);
   }
 
   @Get('coverage')
@@ -75,9 +108,7 @@ export class RatesController {
   @Get('coverage/zones')
   @RequirePermissions(RATE_PERMISSIONS.LIST)
   @ApiMessage('Incomplete rate zones retrieved successfully')
-  getIncompleteZones(
-    @Query() query: ListRateCoverageZonesDto,
-  ) {
+  getIncompleteZones(@Query() query: ListRateCoverageZonesDto) {
     return this.ratesCoverageService.getIncompleteZones(query);
   }
 }

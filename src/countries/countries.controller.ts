@@ -26,9 +26,7 @@ import { UpdateCountryDto } from './dto/update-country.dto.js';
 @Controller('admin/countries')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class CountriesController {
-  constructor(
-    private readonly countriesService: CountriesService,
-  ) {}
+  constructor(private readonly countriesService: CountriesService) {}
 
   @Post()
   @RequirePermissions(COUNTRY_PERMISSIONS.CREATE)
@@ -61,10 +59,7 @@ export class CountriesController {
   @Patch(':id')
   @RequirePermissions(COUNTRY_PERMISSIONS.UPDATE)
   @ApiMessage('Country updated successfully')
-  update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: UpdateCountryDto,
-  ) {
+  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateCountryDto) {
     return this.countriesService.update(id, dto);
   }
 

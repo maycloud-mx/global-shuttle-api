@@ -58,7 +58,9 @@ function requireBoolean(
   throw new Error(`${key} must be true or false`);
 }
 
-export function validateEnvironment(environment: Record<string, unknown>): EnvironmentVariables {
+export function validateEnvironment(
+  environment: Record<string, unknown>,
+): EnvironmentVariables {
   const nodeEnvironmentValue = environment.NODE_ENV ?? 'development';
   if (typeof nodeEnvironmentValue !== 'string') {
     throw new Error('NODE_ENV must be a string');
@@ -115,11 +117,7 @@ export function validateEnvironment(environment: Record<string, unknown>): Envir
 
   const smtpPort = Number(environment.SMTP_PORT);
 
-  if (
-    !Number.isInteger(smtpPort) ||
-    smtpPort < 1 ||
-    smtpPort > 65_535
-  ) {
+  if (!Number.isInteger(smtpPort) || smtpPort < 1 || smtpPort > 65_535) {
     throw new Error('SMTP_PORT must be an integer between 1 and 65535');
   }
 

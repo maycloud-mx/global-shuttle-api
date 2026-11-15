@@ -38,10 +38,10 @@ export class ApiExceptionFilter implements ExceptionFilter {
     const message =
       messages.length === 1
         ? messages[0]
-        : details.error ??
+        : (details.error ??
           (statusCode === HttpStatus.INTERNAL_SERVER_ERROR
             ? 'Internal server error'
-            : 'Request failed');
+            : 'Request failed'));
 
     if (statusCode === HttpStatus.INTERNAL_SERVER_ERROR) {
       this.logger.error(

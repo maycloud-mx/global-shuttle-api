@@ -180,8 +180,8 @@ export class ZonesService {
   ): Promise<void> {
     if (airportTimes === undefined || airportTimes.length === 0) return;
 
-    const requestedIds = airportTimes.map(({ transferPointId }) =>
-      transferPointId,
+    const requestedIds = airportTimes.map(
+      ({ transferPointId }) => transferPointId,
     );
     const airports = await this.prisma.transferPoint.findMany({
       where: {

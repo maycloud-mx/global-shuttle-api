@@ -14,9 +14,7 @@ import type { UpdateCountryDto } from './dto/update-country.dto.js';
 
 @Injectable()
 export class CountriesService {
-  constructor(
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async create(dto: CreateCountryDto) {
     try {
@@ -54,10 +52,7 @@ export class CountriesService {
     const [items, total] = await this.prisma.$transaction([
       this.prisma.country.findMany({
         where,
-        orderBy: [
-          { name: 'asc' },
-          { id: 'asc' },
-        ],
+        orderBy: [{ name: 'asc' }, { id: 'asc' }],
         skip,
         take: query.limit,
       }),
@@ -113,10 +108,7 @@ export class CountriesService {
     }
   }
 
-  async changeStatus(
-    id: number,
-    dto: ChangeCountryStatusDto,
-  ) {
+  async changeStatus(id: number, dto: ChangeCountryStatusDto) {
     await this.ensureCountryExists(id);
 
     return this.prisma.country.update({
@@ -127,9 +119,7 @@ export class CountriesService {
     });
   }
 
-  private async ensureCountryExists(
-    id: number,
-  ): Promise<void> {
+  private async ensureCountryExists(id: number): Promise<void> {
     const country = await this.prisma.country.findUnique({
       where: { id },
       select: { id: true },

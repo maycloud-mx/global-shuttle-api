@@ -26,9 +26,7 @@ import { UpdateAirlineDto } from './dto/update-airline.dto.js';
 @Controller('admin/airlines')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class AirlinesController {
-  constructor(
-    private readonly airlinesService: AirlinesService,
-  ) {}
+  constructor(private readonly airlinesService: AirlinesService) {}
 
   @Post()
   @RequirePermissions(AIRLINE_PERMISSIONS.CREATE)
@@ -61,10 +59,7 @@ export class AirlinesController {
   @Patch(':id')
   @RequirePermissions(AIRLINE_PERMISSIONS.UPDATE)
   @ApiMessage('Airline updated successfully')
-  update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: UpdateAirlineDto,
-  ) {
+  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateAirlineDto) {
     return this.airlinesService.update(id, dto);
   }
 

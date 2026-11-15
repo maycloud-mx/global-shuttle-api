@@ -143,7 +143,10 @@ export function renderReservationQuoteText(
 ): string {
   const transfers = data.transfers
     .map(
-      (transfer, index) => `${index === 0 ? 'OUTBOUND TRANSFER' : 'RETURN TRANSFER'}
+      (
+        transfer,
+        index,
+      ) => `${index === 0 ? 'OUTBOUND TRANSFER' : 'RETURN TRANSFER'}
 ${transfer.origin} -> ${transfer.destination}
 Service: ${formatDate(transfer.serviceDate)} at ${formatTime(transfer.serviceTime)}
 Pickup: ${formatDate(transfer.pickupDate)} at ${formatTime(transfer.pickupTime)}

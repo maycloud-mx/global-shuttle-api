@@ -1,4 +1,3 @@
-
 import {
   BadRequestException,
   Injectable,
@@ -14,22 +13,14 @@ const MAX_BULK_COMBINATIONS = 5000;
 
 @Injectable()
 export class RatesBulkService {
-  constructor(
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  async upsertBulk(
-    dto: BulkUpsertRatesDto,
-    userId: number,
-  ) {
+  async upsertBulk(dto: BulkUpsertRatesDto, userId: number) {
     // 1. Validar zonas de origen y destino.
     const zones = await this.prisma.zone.findMany({
       where: {
         id: {
-          in: [
-            dto.originZoneId,
-            dto.destinationZoneId,
-          ],
+          in: [dto.originZoneId, dto.destinationZoneId],
         },
         status: true,
       },
@@ -40,38 +31,26 @@ export class RatesBulkService {
       },
     });
 
-    const originZone = zones.find(
-      (zone) => zone.id === dto.originZoneId,
-    );
+    const originZone = zones.find((zone) => zone.id === dto.originZoneId);
 
     const destinationZone = zones.find(
       (zone) => zone.id === dto.destinationZoneId,
     );
 
     if (!originZone) {
-      throw new NotFoundException(
-        'Origin zone not found or inactive',
-      );
+      throw new NotFoundException('Origin zone not found or inactive');
     }
 
     if (!destinationZone) {
-      throw new NotFoundException(
-        'Destination zone not found or inactive',
-      );
+      throw new NotFoundException('Destination zone not found or inactive');
     }
 
     // 2. Obtener los catálogos activos.
-    const [
-      vehicles,
-      currencies,
-      serviceTypes,
-    ] = await Promise.all([
+    const [vehicles, currencies, serviceTypes] = await Promise.all([
       this.prisma.vehicle.findMany({
         where: {
           status: true,
-          ...(dto.vehicleId !== undefined
-            ? { id: dto.vehicleId }
-            : {}),
+          ...(dto.vehicleId !== undefined ? { id: dto.vehicleId } : {}),
         },
         select: {
           id: true,
@@ -85,9 +64,7 @@ export class RatesBulkService {
       this.prisma.currency.findMany({
         where: {
           status: true,
-          ...(dto.currencyId !== undefined
-            ? { id: dto.currencyId }
-            : {}),
+          ...(dto.currencyId !== undefined ? { id: dto.currencyId } : {}),
         },
         select: {
           id: true,
@@ -102,9 +79,7 @@ export class RatesBulkService {
       this.prisma.serviceType.findMany({
         where: {
           status: true,
-          ...(dto.serviceTypeId !== undefined
-            ? { id: dto.serviceTypeId }
-            : {}),
+          ...(dto.serviceTypeId !== undefined ? { id: dto.serviceTypeId } : {}),
         },
         select: {
           id: true,
@@ -138,9 +113,7 @@ export class RatesBulkService {
 
     // 4. Calcular la cantidad de combinaciones.
     const totalCombinations =
-      vehicles.length *
-      currencies.length *
-      serviceTypes.length;
+      vehicles.length * currencies.length * serviceTypes.length;
 
     if (totalCombinations > MAX_BULK_COMBINATIONS) {
       throw new BadRequestException(
@@ -192,20 +165,11 @@ export class RatesBulkService {
           vehicleId: number,
           currencyId: number,
           serviceTypeId: number,
-        ) =>
-          [
-            vehicleId,
-            currencyId,
-            serviceTypeId,
-          ].join(':');
+        ) => [vehicleId, currencyId, serviceTypeId].join(':');
 
         const existingKeys = new Set(
           existingRates.map((rate) =>
-            createKey(
-              rate.vehicleId,
-              rate.currencyId,
-              rate.serviceTypeId,
-            ),
+            createKey(rate.vehicleId, rate.currencyId, rate.serviceTypeId),
           ),
         );
 
@@ -223,13 +187,14 @@ export class RatesBulkService {
 
           await tx.rate.upsert({
             where: {
-              originZoneId_destinationZoneId_vehicleId_currencyId_serviceTypeId: {
-                originZoneId: combination.originZoneId,
-                destinationZoneId: combination.destinationZoneId,
-                vehicleId: combination.vehicleId,
-                currencyId: combination.currencyId,
-                serviceTypeId: combination.serviceTypeId,
-              },
+              originZoneId_destinationZoneId_vehicleId_currencyId_serviceTypeId:
+                {
+                  originZoneId: combination.originZoneId,
+                  destinationZoneId: combination.destinationZoneId,
+                  vehicleId: combination.vehicleId,
+                  currencyId: combination.currencyId,
+                  serviceTypeId: combination.serviceTypeId,
+                },
             },
             create: {
               ...combination,
@@ -269,8 +234,7 @@ export class RatesBulkService {
       {
         maxWait: 5000,
         timeout: 180000,
-        isolationLevel:
-          Prisma.TransactionIsolationLevel.Serializable,
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       },
     );
   }

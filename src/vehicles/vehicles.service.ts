@@ -98,11 +98,7 @@ export class VehiclesService {
     return vehicle;
   }
 
-  async update(
-    id: number,
-    dto: UpdateVehicleDto,
-    image?: Express.Multer.File,
-  ) {
+  async update(id: number, dto: UpdateVehicleDto, image?: Express.Multer.File) {
     const current = await this.findOne(id);
     this.validatePassengerRange(
       dto.minPax ?? current.minPax,
@@ -110,10 +106,8 @@ export class VehiclesService {
     );
 
     let uploadedImage: UploadedImage | undefined;
-    let imageData: Pick<
-      Prisma.VehicleUpdateInput,
-      'image' | 'imagePublicId'
-    > = {};
+    let imageData: Pick<Prisma.VehicleUpdateInput, 'image' | 'imagePublicId'> =
+      {};
     let shouldDeletePreviousImage = false;
 
     if (image) {

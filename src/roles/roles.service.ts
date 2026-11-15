@@ -115,10 +115,7 @@ export class RolesService {
         id: true,
         name: true,
       },
-      orderBy: [
-        { name: 'asc' },
-        { id: 'asc' },
-      ],
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
     });
   }
 

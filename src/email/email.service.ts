@@ -1,9 +1,4 @@
-
-import {
-  BadGatewayException,
-  Injectable,
-  Logger,
-} from '@nestjs/common';
+import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
 import type { Transporter, SendMailOptions } from 'nodemailer';
 import { lookup } from 'node:dns/promises';
