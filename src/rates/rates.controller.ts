@@ -5,12 +5,15 @@ import {
   Post,
   Put,
   Query,
+  Res,
+  StreamableFile,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 
 import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
@@ -25,9 +28,11 @@ import { ListRateCoverageZonesDto } from './dto/list-rate-coverage-zones.dto.js'
 import { BulkUpsertRatesDto } from './dto/bulk-upsert-rates.dto.js';
 
 import { RATE_PERMISSIONS } from './rate-permissions.js';
+
 import { RatesService } from './rates.service.js';
 import { RatesBulkService } from './rates-bulk.service.js';
 import { RatesImportService } from './rates-import.service.js';
+import { RatesTemplateService } from './rates-template.service.js';
 import { RatesCoverageService } from './rates-coverage.service.js';
 
 @Controller('admin/rates')
@@ -37,8 +42,13 @@ export class RatesController {
     private readonly ratesService: RatesService,
     private readonly ratesBulkService: RatesBulkService,
     private readonly ratesImportService: RatesImportService,
+    private readonly ratesTemplateService: RatesTemplateService,
     private readonly ratesCoverageService: RatesCoverageService,
   ) {}
+
+  // ============================================
+  // GRID
+  // ============================================
 
   @Get('grid')
   @RequirePermissions(RATE_PERMISSIONS.LIST)
@@ -57,6 +67,10 @@ export class RatesController {
     return this.ratesService.saveGrid(dto, user.id);
   }
 
+  // ============================================
+  // BULK UPSERT
+  // ============================================
+
   @Post('bulk')
   @RequirePermissions(RATE_PERMISSIONS.UPDATE)
   @ApiMessage('Bulk rates saved successfully')
@@ -66,6 +80,34 @@ export class RatesController {
   ) {
     return this.ratesBulkService.upsertBulk(dto, user.id);
   }
+
+  // ============================================
+  // EXCEL TEMPLATE
+  // ============================================
+
+  @Get('import/template')
+  @RequirePermissions(RATE_PERMISSIONS.LIST)
+  async downloadImportTemplate(@Res({ passthrough: true }) res: Response) {
+    const buffer = await this.ratesTemplateService.generate();
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="plantilla_tarifas_global_shuttle.xlsx"',
+    );
+
+    res.setHeader('Content-Length', buffer.length.toString());
+
+    return new StreamableFile(buffer);
+  }
+
+  // ============================================
+  // EXCEL IMPORT - PREVIEW
+  // ============================================
 
   @Post('import/preview')
   @RequirePermissions(RATE_PERMISSIONS.UPDATE)
@@ -80,6 +122,10 @@ export class RatesController {
   previewImport(@UploadedFile() file: Express.Multer.File) {
     return this.ratesImportService.preview(file);
   }
+
+  // ============================================
+  // EXCEL IMPORT - APPLY
+  // ============================================
 
   @Post('import/apply')
   @RequirePermissions(RATE_PERMISSIONS.UPDATE)
@@ -97,6 +143,10 @@ export class RatesController {
   ) {
     return this.ratesImportService.apply(file, user.id);
   }
+
+  // ============================================
+  // RATE COVERAGE
+  // ============================================
 
   @Get('coverage')
   @RequirePermissions(RATE_PERMISSIONS.LIST)

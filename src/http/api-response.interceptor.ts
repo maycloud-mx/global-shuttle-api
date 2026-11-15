@@ -3,6 +3,7 @@ import {
   ExecutionContext,
   Injectable,
   NestInterceptor,
+  StreamableFile,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request, Response } from 'express';
@@ -21,14 +22,14 @@ export interface ApiSuccessResponse<T> {
 @Injectable()
 export class ApiResponseInterceptor<T> implements NestInterceptor<
   T,
-  ApiSuccessResponse<T>
+  ApiSuccessResponse<T> | StreamableFile
 > {
   constructor(private readonly reflector = new Reflector()) {}
 
   intercept(
     context: ExecutionContext,
     next: CallHandler<T>,
-  ): Observable<ApiSuccessResponse<T>> {
+  ): Observable<ApiSuccessResponse<T> | StreamableFile> {
     const request = context.switchToHttp().getRequest<Request>();
     const response = context.switchToHttp().getResponse<Response>();
     const message =
@@ -38,14 +39,20 @@ export class ApiResponseInterceptor<T> implements NestInterceptor<
       ]) ?? 'Request completed successfully';
 
     return next.handle().pipe(
-      map((data) => ({
-        success: true,
-        statusCode: response.statusCode,
-        message,
-        data,
-        timestamp: new Date().toISOString(),
-        path: request.originalUrl,
-      })),
+      map((data) => {
+        if (data instanceof StreamableFile) {
+          return data;
+        }
+
+        return {
+          success: true as const,
+          statusCode: response.statusCode,
+          message,
+          data,
+          timestamp: new Date().toISOString(),
+          path: request.originalUrl,
+        };
+      }),
     );
   }
 }

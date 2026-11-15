@@ -13,12 +13,12 @@ const MAX_IMPORT_ROWS = 1000;
 const LOOKUP_BATCH_SIZE = 100;
 
 const REQUIRED_HEADERS = [
-  'originZoneId',
-  'destinationZoneId',
-  'vehicleId',
-  'currencyId',
-  'serviceTypeId',
-  'price',
+  'Zona origen',
+  'Zona destino',
+  'Vehículo',
+  'Moneda',
+  'Tipo de servicio',
+  'Precio',
 ] as const;
 
 type ImportRateRow = {
@@ -52,11 +52,16 @@ export class RatesImportService {
       return null;
     }
 
-    if (typeof value === 'string' && !/^\d+$/.test(value.trim())) {
+    if (
+      typeof value === 'string' &&
+      !/^\d+(?:\s+-\s+.+)?$/.test(value.trim())
+    ) {
       return null;
     }
 
-    const number = Number(value);
+    const number = Number(
+      typeof value === 'string' ? value.trim().split(/\s+-\s+/, 1)[0] : value,
+    );
 
     return Number.isSafeInteger(number) && number > 0 ? number : null;
   }
@@ -112,7 +117,11 @@ export class RatesImportService {
       {
         length: Math.max(headerRow.cellCount, REQUIRED_HEADERS.length),
       },
-      (_, index) => String(headerRow.getCell(index + 1).value ?? '').trim(),
+      (_, index) => {
+        const value = headerRow.getCell(index + 1).value;
+
+        return typeof value === 'string' ? value.trim() : '';
+      },
     );
 
     const validHeaders =
