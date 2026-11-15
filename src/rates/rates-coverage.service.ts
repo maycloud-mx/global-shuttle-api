@@ -1,6 +1,7 @@
 
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { ListRateCoverageZonesDto } from './dto/list-rate-coverage-zones.dto.js';
 
 interface CatalogReference {
   id: number;
@@ -46,192 +47,332 @@ export class RatesCoverageService {
     };
   }
 
-  async getSummary() {
-    const [zones, vehicles, currencies, serviceTypes] =
-      await Promise.all([
-        this.prisma.zone.findMany({
-          where: { status: true },
-          select: { id: true, name: true, code: true },
-          orderBy: { id: 'asc' },
-        }),
-        this.prisma.vehicle.findMany({
-          where: { status: true },
-          select: { id: true, name: true },
-          orderBy: { id: 'asc' },
-        }),
-        this.prisma.currency.findMany({
-          where: { status: true },
-          select: { id: true, name: true, code: true },
-          orderBy: { id: 'asc' },
-        }),
-        this.prisma.serviceType.findMany({
-          where: { status: true },
-          select: { id: true, name: true, code: true },
-          orderBy: { id: 'asc' },
-        }),
-      ]);
+    async getSummary() {
+        const [zones, vehicles, currencies, serviceTypes] =
+        await Promise.all([
+            this.prisma.zone.findMany({
+            where: { status: true },
+            select: { id: true, name: true, code: true },
+            orderBy: { id: 'asc' },
+            }),
+            this.prisma.vehicle.findMany({
+            where: { status: true },
+            select: { id: true, name: true },
+            orderBy: { id: 'asc' },
+            }),
+            this.prisma.currency.findMany({
+            where: { status: true },
+            select: { id: true, name: true, code: true },
+            orderBy: { id: 'asc' },
+            }),
+            this.prisma.serviceType.findMany({
+            where: { status: true },
+            select: { id: true, name: true, code: true },
+            orderBy: { id: 'asc' },
+            }),
+        ]);
 
-    const zoneCount = zones.length;
-    const vehicleCount = vehicles.length;
-    const currencyCount = currencies.length;
-    const serviceCount = serviceTypes.length;
+        const zoneCount = zones.length;
+        const vehicleCount = vehicles.length;
+        const currencyCount = currencies.length;
+        const serviceCount = serviceTypes.length;
 
-    const expected =
-      zoneCount *
-      zoneCount *
-      vehicleCount *
-      currencyCount *
-      serviceCount;
+        const expected =
+        zoneCount *
+        zoneCount *
+        vehicleCount *
+        currencyCount *
+        serviceCount;
 
-    const breakdown = (
-      items: CatalogReference[],
-      expectedPerItem: number,
-      configuredCounts: Map<number, number>,
-      inactiveCounts: Map<number, number>,
-    ) =>
-      items.map((item) => ({
-        id: item.id,
-        name: item.name,
-        ...(item.code ? { code: item.code } : {}),
-        ...this.calculateStats(
-          expectedPerItem,
-          configuredCounts.get(item.id) ?? 0,
-          inactiveCounts.get(item.id) ?? 0,
+        const breakdown = (
+        items: CatalogReference[],
+        expectedPerItem: number,
+        configuredCounts: Map<number, number>,
+        inactiveCounts: Map<number, number>,
+        ) =>
+        items.map((item) => ({
+            id: item.id,
+            name: item.name,
+            ...(item.code ? { code: item.code } : {}),
+            ...this.calculateStats(
+            expectedPerItem,
+            configuredCounts.get(item.id) ?? 0,
+            inactiveCounts.get(item.id) ?? 0,
+            ),
+        }));
+
+        if (expected === 0) {
+        return {
+            summary: this.calculateStats(0, 0, 0),
+            zones: {
+            total: zoneCount,
+            complete: 0,
+            incomplete: 0,
+            },
+            catalogs: {
+            zones: zoneCount,
+            vehicles: vehicleCount,
+            currencies: currencyCount,
+            serviceTypes: serviceCount,
+            },
+            breakdown: {
+            byVehicle: breakdown(
+                vehicles, 0, new Map(), new Map(),
+            ),
+            byCurrency: breakdown(
+                currencies, 0, new Map(), new Map(),
+            ),
+            byServiceType: breakdown(
+                serviceTypes, 0, new Map(), new Map(),
+            ),
+            },
+        };
+        }
+
+        const rates = await this.prisma.rate.findMany({
+        where: {
+            originZone: { status: true },
+            destinationZone: { status: true },
+            vehicle: { status: true },
+            currency: { status: true },
+            serviceType: { status: true },
+        },
+        select: {
+            originZoneId: true,
+            destinationZoneId: true,
+            vehicleId: true,
+            currencyId: true,
+            serviceTypeId: true,
+            status: true,
+        },
+        });
+
+        let configured = 0;
+        let inactive = 0;
+
+        const configuredVehicles = new Map<number, number>();
+        const inactiveVehicles = new Map<number, number>();
+        const configuredCurrencies = new Map<number, number>();
+        const inactiveCurrencies = new Map<number, number>();
+        const configuredServices = new Map<number, number>();
+        const inactiveServices = new Map<number, number>();
+
+        const zoneCoverage = new Map<number, number>();
+
+        function increment(map: Map<number, number>, id: number) {
+        map.set(id, (map.get(id) ?? 0) + 1);
+        }
+
+        for (const rate of rates) {
+        const active = rate.status;
+
+        if (active) {
+            configured++;
+            increment(configuredVehicles, rate.vehicleId);
+            increment(configuredCurrencies, rate.currencyId);
+            increment(configuredServices, rate.serviceTypeId);
+
+            increment(zoneCoverage, rate.originZoneId);
+
+            if (rate.originZoneId !== rate.destinationZoneId) {
+            increment(zoneCoverage, rate.destinationZoneId);
+            }
+        } else {
+            inactive++;
+            increment(inactiveVehicles, rate.vehicleId);
+            increment(inactiveCurrencies, rate.currencyId);
+            increment(inactiveServices, rate.serviceTypeId);
+        }
+        }
+
+        const expectedPerZone =
+        (2 * zoneCount - 1) *
+        vehicleCount *
+        currencyCount *
+        serviceCount;
+
+        const completeZones = zones.filter(
+        (zone) =>
+            (zoneCoverage.get(zone.id) ?? 0) === expectedPerZone,
+        ).length;
+
+        return {
+        summary: this.calculateStats(
+            expected,
+            configured,
+            inactive,
         ),
-      }));
-
-    if (expected === 0) {
-      return {
-        summary: this.calculateStats(0, 0, 0),
         zones: {
-          total: zoneCount,
-          complete: 0,
-          incomplete: 0,
+            total: zoneCount,
+            complete: completeZones,
+            incomplete: zoneCount - completeZones,
         },
         catalogs: {
-          zones: zoneCount,
-          vehicles: vehicleCount,
-          currencies: currencyCount,
-          serviceTypes: serviceCount,
+            zones: zoneCount,
+            vehicles: vehicleCount,
+            currencies: currencyCount,
+            serviceTypes: serviceCount,
         },
         breakdown: {
-          byVehicle: breakdown(
-            vehicles, 0, new Map(), new Map(),
-          ),
-          byCurrency: breakdown(
-            currencies, 0, new Map(), new Map(),
-          ),
-          byServiceType: breakdown(
-            serviceTypes, 0, new Map(), new Map(),
-          ),
+            byVehicle: breakdown(
+            vehicles,
+            zoneCount * zoneCount * currencyCount * serviceCount,
+            configuredVehicles,
+            inactiveVehicles,
+            ),
+            byCurrency: breakdown(
+            currencies,
+            zoneCount * zoneCount * vehicleCount * serviceCount,
+            configuredCurrencies,
+            inactiveCurrencies,
+            ),
+            byServiceType: breakdown(
+            serviceTypes,
+            zoneCount * zoneCount * vehicleCount * currencyCount,
+            configuredServices,
+            inactiveServices,
+            ),
         },
-      };
+        };
+    }
+
+
+    async getIncompleteZones(query: ListRateCoverageZonesDto) {
+    const [zones, vehicleCount, currencyCount, serviceCount] =
+        await Promise.all([
+        this.prisma.zone.findMany({
+            where: { status: true },
+            select: {
+            id: true,
+            name: true,
+            code: true,
+            },
+            orderBy: { id: 'asc' },
+        }),
+        this.prisma.vehicle.count({
+            where: { status: true },
+        }),
+        this.prisma.currency.count({
+            where: { status: true },
+        }),
+        this.prisma.serviceType.count({
+            where: { status: true },
+        }),
+        ]);
+
+    const zoneCount = zones.length;
+
+    const combinationsPerRoute =
+        vehicleCount * currencyCount * serviceCount;
+
+    const expectedPerDirection =
+        zoneCount * combinationsPerRoute;
+
+    const expectedOverall =
+        (2 * zoneCount - 1) * combinationsPerRoute;
+
+    if (expectedOverall === 0) {
+        return {
+        items: [],
+        pagination: {
+            page: query.page,
+            limit: query.limit,
+            total: 0,
+            totalPages: 0,
+        },
+        };
     }
 
     const rates = await this.prisma.rate.findMany({
-      where: {
+        where: {
+        status: true,
         originZone: { status: true },
         destinationZone: { status: true },
         vehicle: { status: true },
         currency: { status: true },
         serviceType: { status: true },
-      },
-      select: {
+        },
+        select: {
         originZoneId: true,
         destinationZoneId: true,
-        vehicleId: true,
-        currencyId: true,
-        serviceTypeId: true,
-        status: true,
-      },
+        },
     });
 
-    let configured = 0;
-    let inactive = 0;
+    const originCounts = new Map<number, number>();
+    const destinationCounts = new Map<number, number>();
+    const overallCounts = new Map<number, number>();
 
-    const configuredVehicles = new Map<number, number>();
-    const inactiveVehicles = new Map<number, number>();
-    const configuredCurrencies = new Map<number, number>();
-    const inactiveCurrencies = new Map<number, number>();
-    const configuredServices = new Map<number, number>();
-    const inactiveServices = new Map<number, number>();
-
-    const zoneCoverage = new Map<number, number>();
-
-    function increment(map: Map<number, number>, id: number) {
-      map.set(id, (map.get(id) ?? 0) + 1);
-    }
+    const increment = (map: Map<number, number>, id: number) => {
+        map.set(id, (map.get(id) ?? 0) + 1);
+    };
 
     for (const rate of rates) {
-      const active = rate.status;
+        increment(originCounts, rate.originZoneId);
+        increment(destinationCounts, rate.destinationZoneId);
 
-      if (active) {
-        configured++;
-        increment(configuredVehicles, rate.vehicleId);
-        increment(configuredCurrencies, rate.currencyId);
-        increment(configuredServices, rate.serviceTypeId);
-
-        increment(zoneCoverage, rate.originZoneId);
+        increment(overallCounts, rate.originZoneId);
 
         if (rate.originZoneId !== rate.destinationZoneId) {
-          increment(zoneCoverage, rate.destinationZoneId);
+        increment(overallCounts, rate.destinationZoneId);
         }
-      } else {
-        inactive++;
-        increment(inactiveVehicles, rate.vehicleId);
-        increment(inactiveCurrencies, rate.currencyId);
-        increment(inactiveServices, rate.serviceTypeId);
-      }
     }
 
-    const expectedPerZone =
-      (2 * zoneCount - 1) *
-      vehicleCount *
-      currencyCount *
-      serviceCount;
+    const buildStats = (expected: number, configured: number) => {
+        const pending = expected - configured;
 
-    const completeZones = zones.filter(
-      (zone) =>
-        (zoneCoverage.get(zone.id) ?? 0) === expectedPerZone,
-    ).length;
-
-    return {
-      summary: this.calculateStats(
+        return {
         expected,
         configured,
-        inactive,
-      ),
-      zones: {
-        total: zoneCount,
-        complete: completeZones,
-        incomplete: zoneCount - completeZones,
-      },
-      catalogs: {
-        zones: zoneCount,
-        vehicles: vehicleCount,
-        currencies: currencyCount,
-        serviceTypes: serviceCount,
-      },
-      breakdown: {
-        byVehicle: breakdown(
-          vehicles,
-          zoneCount * zoneCount * currencyCount * serviceCount,
-          configuredVehicles,
-          inactiveVehicles,
-        ),
-        byCurrency: breakdown(
-          currencies,
-          zoneCount * zoneCount * vehicleCount * serviceCount,
-          configuredCurrencies,
-          inactiveCurrencies,
-        ),
-        byServiceType: breakdown(
-          serviceTypes,
-          zoneCount * zoneCount * vehicleCount * currencyCount,
-          configuredServices,
-          inactiveServices,
-        ),
-      },
+        pending,
+        coveragePercentage:
+            Math.round((configured / expected) * 10000) / 100,
+        };
     };
-  }
+
+    const items = zones
+        .map((zone) => {
+        const asOrigin = buildStats(
+            expectedPerDirection,
+            originCounts.get(zone.id) ?? 0,
+        );
+
+        const asDestination = buildStats(
+            expectedPerDirection,
+            destinationCounts.get(zone.id) ?? 0,
+        );
+
+        const overall = buildStats(
+            expectedOverall,
+            overallCounts.get(zone.id) ?? 0,
+        );
+
+        return {
+            zone,
+            asOrigin,
+            asDestination,
+            overall,
+        };
+        })
+        .filter((item) => item.overall.pending > 0)
+        .sort(
+        (a, b) =>
+            a.overall.coveragePercentage -
+            b.overall.coveragePercentage ||
+            a.zone.id - b.zone.id,
+        );
+
+    const total = items.length;
+    const skip = (query.page - 1) * query.limit;
+
+    return {
+        items: items.slice(skip, skip + query.limit),
+        pagination: {
+        page: query.page,
+        limit: query.limit,
+        total,
+        totalPages: Math.ceil(total / query.limit),
+        },
+    };
+    }
+
 }

@@ -22,6 +22,7 @@ import { UpdateRateDto } from './dto/update-rate.dto.js';
 import { RATE_PERMISSIONS } from './rate-permissions.js';
 import { RatesService } from './rates.service.js';
 import { RatesCoverageService } from './rates-coverage.service.js';
+import { ListRateCoverageZonesDto } from './dto/list-rate-coverage-zones.dto.js';
 
 @Controller('admin/rates')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -53,6 +54,14 @@ constructor(
   @ApiMessage('Rate coverage retrieved successfully')
   getCoverage() {
     return this.ratesCoverageService.getSummary();
+  }
+
+
+  @Get('coverage/zones')
+  @RequirePermissions(RATE_PERMISSIONS.LIST)
+  @ApiMessage('Incomplete rate zones retrieved successfully')
+  getIncompleteZones(@Query() query: ListRateCoverageZonesDto) {
+    return this.ratesCoverageService.getIncompleteZones(query);
   }
 
 
