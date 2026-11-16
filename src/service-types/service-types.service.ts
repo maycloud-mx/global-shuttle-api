@@ -63,6 +63,26 @@ export class ServiceTypesService {
     };
   }
 
+  // =========================================================
+  // GET ACTIVE SERVICE TYPE OPTIONS
+  // =========================================================
+
+  async findOptions() {
+    return this.prisma.serviceType.findMany({
+      where: {
+        status: true,
+        code: {
+          in: ['ONE_WAY', 'ROUND_TRIP'],
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+    });
+  }
+
   async findOne(id: number) {
     const serviceType = await this.prisma.serviceType.findUnique({
       where: { id },

@@ -63,6 +63,23 @@ export class CurrenciesService {
     };
   }
 
+  // =========================================================
+  // GET ACTIVE CURRENCY OPTIONS
+  // =========================================================
+
+  async findOptions() {
+    return this.prisma.currency.findMany({
+      where: {
+        status: true,
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+    });
+  }
+
   async findOne(id: number) {
     const currency = await this.prisma.currency.findUnique({ where: { id } });
     if (!currency) throw new NotFoundException('Currency not found');

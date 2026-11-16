@@ -1,80 +1,53 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-
-import {
-  Prisma,
-  ReservationTransferSegmentLeg,
-  ReservationTransferSegmentType,
-  TransferPointType,
-} from '../../generated/prisma/index.js';
 
 import { PrismaService } from '../../prisma/prisma.service.js';
 
 import type { CreateReservationDto } from '../dto/create-reservation.dto.js';
-import { ReservationQuoteService } from './reservation-quote.service.js';
 
-const ROUND_TRIP_SERVICE_CODE = 'ROUND_TRIP';
 const QUOTATION_STATUS_CODE = 'QUOTATION';
-const INITIAL_TRANSFER_STATUS_ID = 1;
 const CANCUN_TIME_ZONE = 'America/Cancun';
 
 @Injectable()
 export class ReservationCreateService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly reservationQuoteService: ReservationQuoteService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   // =========================================================
   // CREATE RESERVATION
   // =========================================================
 
   async create(dto: CreateReservationDto, userId: number) {
-    const quotation = await this.reservationQuoteService.quote(dto);
+    // =========================================================
+    // VALIDATE CURRENCY AND INITIAL STATUS
+    // =========================================================
 
-    const selectedOption = quotation.options.find(
-      ({ rateId }) => rateId === dto.rateId,
-    );
+    const [currency, reservationStatus] = await Promise.all([
+      this.prisma.currency.findFirst({
+        where: {
+          id: dto.currencyId,
+          status: true,
+        },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+        },
+      }),
 
-    if (!selectedOption) {
-      throw new BadRequestException(
-        'The selected rate is not available for this reservation',
-      );
-    }
-
-    const [reservationStatus, transferStatus, points] = await Promise.all([
       this.prisma.reservationStatus.findFirst({
         where: {
           code: QUOTATION_STATUS_CODE,
           status: true,
         },
-        select: { id: true },
-      }),
-
-      this.prisma.transferStatus.findFirst({
-        where: {
-          id: INITIAL_TRANSFER_STATUS_ID,
-          status: true,
-        },
-        select: { id: true },
-      }),
-
-      this.prisma.transferPoint.findMany({
-        where: {
-          id: {
-            in: [dto.originTransferPointId, dto.destinationTransferPointId],
-          },
-        },
         select: {
           id: true,
-          type: true,
         },
       }),
     ]);
+
+    if (!currency) {
+      throw new NotFoundException('Active currency not found');
+    }
 
     if (!reservationStatus) {
       throw new NotFoundException(
@@ -82,127 +55,28 @@ export class ReservationCreateService {
       );
     }
 
-    if (!transferStatus) {
-      throw new NotFoundException(
-        `Active initial transfer status ${INITIAL_TRANSFER_STATUS_ID} not found`,
-      );
-    }
-
-    const origin = points.find(({ id }) => id === dto.originTransferPointId);
-
-    const destination = points.find(
-      ({ id }) => id === dto.destinationTransferPointId,
-    );
-
-    if (!origin || !destination) {
-      throw new NotFoundException(
-        'Origin or destination transfer point not found',
-      );
-    }
-
-    const outboundSegment = this.resolveSegment(
-      origin.type,
-      destination.type,
-      false,
-    );
-
-    const transferGroupUuid = randomUUID();
-
-    const transfers: Prisma.ReservationTransferCreateWithoutReservationInput[] =
-      [
-        {
-          serviceType: {
-            connect: { id: dto.serviceTypeId },
-          },
-          vehicle: {
-            connect: { id: selectedOption.vehicle.id },
-          },
-          rate: {
-            connect: { id: dto.rateId },
-          },
-          originTransferPoint: {
-            connect: { id: dto.originTransferPointId },
-          },
-          destinationTransferPoint: {
-            connect: { id: dto.destinationTransferPointId },
-          },
-
-          segmentLeg: outboundSegment.leg,
-          segmentType: outboundSegment.type,
-          transferGroupUuid,
-
-          pickupDate: this.toDatabaseDate(dto.pickupDate),
-          pickupTime: this.toDatabaseTime(dto.pickupTime),
-          serviceDate: this.toDatabaseDate(dto.serviceDate),
-          serviceTime: this.toDatabaseTime(dto.serviceTime),
-
-          passengers: dto.passengers,
-          luggage: dto.luggage,
-          flightNumber: dto.flightNumber,
-
-          airline: dto.airlineId
-            ? { connect: { id: dto.airlineId } }
-            : undefined,
-
-          transferStatus: {
-            connect: { id: transferStatus.id },
-          },
-        },
-      ];
-
     // =========================================================
-    // RETURN TRANSFER
+    // VALIDATE CUSTOMER COUNTRY
     // =========================================================
 
-    if (quotation.serviceType.code === ROUND_TRIP_SERVICE_CODE) {
-      const returnSegment = this.resolveSegment(
-        destination.type,
-        origin.type,
-        true,
-      );
-
-      transfers.push({
-        serviceType: {
-          connect: { id: dto.serviceTypeId },
+    if (dto.customer.countryId) {
+      const country = await this.prisma.country.findFirst({
+        where: {
+          id: dto.customer.countryId,
+          status: true,
         },
-        vehicle: {
-          connect: { id: selectedOption.vehicle.id },
-        },
-        rate: {
-          connect: { id: dto.rateId },
-        },
-        originTransferPoint: {
-          connect: { id: dto.destinationTransferPointId },
-        },
-        destinationTransferPoint: {
-          connect: { id: dto.originTransferPointId },
-        },
-
-        segmentLeg: returnSegment.leg,
-        segmentType: returnSegment.type,
-        transferGroupUuid,
-
-        pickupDate: this.toDatabaseDate(dto.returnPickupDate!),
-        pickupTime: this.toDatabaseTime(dto.returnPickupTime!),
-        serviceDate: this.toDatabaseDate(dto.returnServiceDate!),
-        serviceTime: this.toDatabaseTime(dto.returnServiceTime!),
-
-        passengers: dto.passengers,
-        luggage: dto.luggage,
-        flightNumber: dto.returnFlightNumber,
-
-        airline: dto.returnAirlineId
-          ? { connect: { id: dto.returnAirlineId } }
-          : undefined,
-
-        transferStatus: {
-          connect: { id: transferStatus.id },
+        select: {
+          id: true,
         },
       });
+
+      if (!country) {
+        throw new NotFoundException('Active customer country not found');
+      }
     }
 
     // =========================================================
-    // SAVE RESERVATION
+    // CREATE RESERVATION
     // =========================================================
 
     return this.prisma.reservation.create({
@@ -210,14 +84,14 @@ export class ReservationCreateService {
         folio: this.generateFolio(),
 
         currency: {
-          connect: { id: dto.currencyId },
+          connect: { id: currency.id },
         },
 
-        subtotal: selectedOption.price,
+        subtotal: 0,
         discount: 0,
-        total: selectedOption.price,
+        total: 0,
         paidAmount: 0,
-        pendingAmount: selectedOption.price,
+        pendingAmount: 0,
 
         reservationStatus: {
           connect: { id: reservationStatus.id },
@@ -235,16 +109,14 @@ export class ReservationCreateService {
             firstName: dto.customer.firstName.trim(),
             lastName: dto.customer.lastName.trim(),
             email: dto.customer.email.trim().toLowerCase(),
-            phone: dto.customer.phone?.trim(),
+            phone: dto.customer.phone?.trim() || null,
 
             country: dto.customer.countryId
-              ? { connect: { id: dto.customer.countryId } }
+              ? {
+                  connect: { id: dto.customer.countryId },
+                }
               : undefined,
           },
-        },
-
-        transfers: {
-          create: transfers,
         },
       },
 
@@ -265,80 +137,31 @@ export class ReservationCreateService {
           },
         },
 
-        reservationCustomer: true,
-
-        transfers: {
+        reservationCustomer: {
           include: {
-            vehicle: true,
-            originTransferPoint: true,
-            destinationTransferPoint: true,
-            transferStatus: true,
-            airline: true,
+            country: {
+              select: {
+                id: true,
+                name: true,
+                iso2: true,
+                phoneCode: true,
+              },
+            },
           },
         },
+
+        createdBy: {
+          select: {
+            id: true,
+            username: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+
+        transfers: true,
       },
     });
-  }
-
-  // =========================================================
-  // RESOLVE TRANSFER SEGMENT
-  // =========================================================
-
-  private resolveSegment(
-    originType: TransferPointType,
-    destinationType: TransferPointType,
-    isReturn: boolean,
-  ): {
-    leg: ReservationTransferSegmentLeg;
-    type: ReservationTransferSegmentType;
-  } {
-    if (
-      originType === TransferPointType.AIRPORT &&
-      destinationType === TransferPointType.HOTEL
-    ) {
-      return {
-        leg: ReservationTransferSegmentLeg.LLEGADA,
-        type: ReservationTransferSegmentType.AH,
-      };
-    }
-
-    if (
-      originType === TransferPointType.HOTEL &&
-      destinationType === TransferPointType.AIRPORT
-    ) {
-      return {
-        leg: ReservationTransferSegmentLeg.SALIDA,
-        type: ReservationTransferSegmentType.HA,
-      };
-    }
-
-    if (
-      originType === TransferPointType.HOTEL &&
-      destinationType === TransferPointType.HOTEL
-    ) {
-      return {
-        leg: isReturn
-          ? ReservationTransferSegmentLeg.LLEGADA
-          : ReservationTransferSegmentLeg.SALIDA,
-        type: ReservationTransferSegmentType.HH,
-      };
-    }
-
-    throw new BadRequestException(
-      'Airport-to-airport transfers are not supported',
-    );
-  }
-
-  // =========================================================
-  // DATABASE DATE UTILITIES
-  // =========================================================
-
-  private toDatabaseDate(date: string): Date {
-    return new Date(`${date}T00:00:00.000Z`);
-  }
-
-  private toDatabaseTime(time: string): Date {
-    return new Date(`1970-01-01T${time}:00.000Z`);
   }
 
   // =========================================================
@@ -357,6 +180,7 @@ export class ReservationCreateService {
       dateParts.find((part) => part.type === type)?.value ?? '';
 
     const date = `${getPart('day')}${getPart('month')}${getPart('year')}`;
+
     const suffix = randomUUID().slice(0, 8).toUpperCase();
 
     return `GS-${date}-${suffix}`;

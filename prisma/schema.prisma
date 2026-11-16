@@ -185,8 +185,8 @@ model BusinessPartner {
 model Airline {
   id                   Int                   @id @default(autoincrement()) @db.UnsignedInt
   name                 String                @db.VarChar(150)
-  iataCode             String                @unique @map("iata_code") @db.VarChar(3)
-  icaoCode             String                @unique @map("icao_code") @db.VarChar(4)
+  iataCode             String                @map("iata_code") @db.VarChar(3)
+  icaoCode             String                @map("icao_code") @db.VarChar(4)
   status               Boolean               @default(true)
   createdAt            DateTime              @default(now()) @map("created_at")
   updatedAt            DateTime?             @updatedAt @map("updated_at")
@@ -470,6 +470,7 @@ model ReservationTransfer {
   serviceTypeId              Int                            @map("service_type_id") @db.UnsignedInt
   vehicleId                  Int                            @map("vehicle_id") @db.UnsignedInt
   rateId                     Int                            @map("rate_id") @db.UnsignedInt
+  price                      Decimal                        @db.Decimal(12, 2)
   originTransferPointId      Int                            @map("origin_transfer_point_id") @db.UnsignedInt
   destinationTransferPointId Int                            @map("destination_transfer_point_id") @db.UnsignedInt
   segmentLeg                 ReservationTransferSegmentLeg  @map("segment_leg")
@@ -488,6 +489,7 @@ model ReservationTransfer {
   unitName                   String?                        @map("unit_name") @db.VarChar(150)
   createdAt                  DateTime                       @default(now()) @map("created_at")
   updatedAt                  DateTime?                      @updatedAt @map("updated_at")
+
   reservation                Reservation                    @relation(fields: [reservationId], references: [id], onDelete: Restrict)
   serviceType                ServiceType                    @relation(fields: [serviceTypeId], references: [id], onDelete: Restrict)
   vehicle                    Vehicle                        @relation(fields: [vehicleId], references: [id], onDelete: Restrict)

@@ -3,7 +3,6 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
 
 import {
   Prisma,
@@ -15,13 +14,16 @@ import {
 import { PrismaService } from '../../prisma/prisma.service.js';
 
 import type { UpdateReservationDto } from '../dto/update-reservation.dto.js';
+import type { UpdateReservationTransferDto } from '../dto/update-reservation-transfer.dto.js';
 
 import { ReservationDetailService } from './reservation-detail.service.js';
 import { ReservationQuoteService } from './reservation-quote.service.js';
 
+const ONE_WAY_SERVICE_CODE = 'ONE_WAY';
 const ROUND_TRIP_SERVICE_CODE = 'ROUND_TRIP';
 const CANCELLED_STATUS_CODE = 'CANCELLED';
 const INITIAL_TRANSFER_STATUS_ID = 1;
+const CANCUN_UTC_OFFSET = '-05:00';
 
 @Injectable()
 export class ReservationUpdateService {
@@ -31,28 +33,18 @@ export class ReservationUpdateService {
     private readonly reservationDetailService: ReservationDetailService,
   ) {}
 
-  async update(id: number, dto: UpdateReservationDto) {
-    // =========================================================
-    // GET CURRENT RESERVATION
-    // =========================================================
+  // =========================================================
+  // UPDATE RESERVATION CUSTOMER
+  // =========================================================
 
+  async update(id: number, dto: UpdateReservationDto) {
     const current = await this.prisma.reservation.findUnique({
       where: { id },
       select: {
         id: true,
-        discount: true,
-        paidAmount: true,
         reservationCustomerId: true,
         reservationStatus: {
           select: { code: true },
-        },
-        transfers: {
-          select: {
-            id: true,
-            transferStatusId: true,
-            transferGroupUuid: true,
-          },
-          orderBy: { id: 'asc' },
         },
       },
     });
@@ -67,102 +59,385 @@ export class ReservationUpdateService {
       );
     }
 
-    if (current.transfers.length > 2) {
+    if (!current.reservationCustomerId) {
+      throw new NotFoundException('Reservation customer not found');
+    }
+
+    const hasChanges = Object.values(dto).some((value) => value !== undefined);
+
+    if (!hasChanges) {
       throw new BadRequestException(
-        'Reservations with more than two transfers cannot be updated using this operation',
+        'At least one customer field must be provided',
       );
     }
+
+    const firstName = dto.firstName?.trim();
+    const lastName = dto.lastName?.trim();
+    const email = dto.email?.trim().toLowerCase();
+
+    if (firstName !== undefined && !firstName) {
+      throw new BadRequestException('First name cannot be empty');
+    }
+
+    if (lastName !== undefined && !lastName) {
+      throw new BadRequestException('Last name cannot be empty');
+    }
+
+    if (email !== undefined && !email) {
+      throw new BadRequestException('Email cannot be empty');
+    }
+
+    if (dto.countryId != null) {
+      const country = await this.prisma.country.findFirst({
+        where: {
+          id: dto.countryId,
+          status: true,
+        },
+        select: { id: true },
+      });
+
+      if (!country) {
+        throw new NotFoundException('Active country not found');
+      }
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const reservation = await tx.reservation.findUnique({
+        where: { id },
+        select: {
+          reservationCustomerId: true,
+          reservationStatus: {
+            select: { code: true },
+          },
+        },
+      });
+
+      if (!reservation) {
+        throw new NotFoundException('Reservation not found');
+      }
+
+      if (reservation.reservationStatus.code === CANCELLED_STATUS_CODE) {
+        throw new BadRequestException(
+          'A cancelled reservation cannot be updated',
+        );
+      }
+
+      if (!reservation.reservationCustomerId) {
+        throw new NotFoundException('Reservation customer not found');
+      }
+
+      await tx.reservationCustomer.update({
+        where: { id: reservation.reservationCustomerId },
+        data: {
+          firstName,
+          lastName,
+          email,
+          phone:
+            dto.phone === undefined ? undefined : dto.phone?.trim() || null,
+          countryId: dto.countryId,
+        },
+      });
+    });
+
+    return this.reservationDetailService.findOne(id);
+  }
+
+  // =========================================================
+  // UPDATE RESERVATION TRANSFER
+  // =========================================================
+
+  async updateTransfer(
+    reservationId: number,
+    transferId: number,
+    dto: UpdateReservationTransferDto,
+  ) {
+    if (!Object.values(dto).some((value) => value !== undefined)) {
+      throw new BadRequestException(
+        'At least one transfer field must be provided',
+      );
+    }
+
+    // =========================================================
+    // LOAD CURRENT TRANSFER GROUP
+    // =========================================================
+
+    const current = await this.prisma.reservationTransfer.findFirst({
+      where: {
+        id: transferId,
+        reservationId,
+      },
+      select: {
+        id: true,
+        transferGroupUuid: true,
+      },
+    });
+
+    if (!current) {
+      throw new NotFoundException('Reservation transfer not found');
+    }
+
+    const group = await this.prisma.reservationTransfer.findMany({
+      where: {
+        reservationId,
+        transferGroupUuid: current.transferGroupUuid,
+      },
+      include: {
+        serviceType: {
+          select: {
+            id: true,
+            code: true,
+          },
+        },
+      },
+      orderBy: { id: 'asc' },
+    });
+
+    if (group.length < 1 || group.length > 2) {
+      throw new BadRequestException('Invalid reservation transfer group');
+    }
+
+    const outbound = group[0];
+    const existingReturn = group[1] ?? null;
+
+    if (
+      (outbound.serviceType.code === ROUND_TRIP_SERVICE_CODE &&
+        !existingReturn) ||
+      (outbound.serviceType.code === ONE_WAY_SERVICE_CODE && existingReturn) ||
+      group.some((item) => item.serviceTypeId !== outbound.serviceTypeId)
+    ) {
+      throw new BadRequestException('Inconsistent reservation transfer group');
+    }
+
+    // =========================================================
+    // VALIDATE OPERATIONAL STATUS
+    // =========================================================
+
+    if (
+      group.some((item) => item.transferStatusId !== INITIAL_TRANSFER_STATUS_ID)
+    ) {
+      throw new BadRequestException(
+        'Only transfers in their initial status can be updated',
+      );
+    }
+
+    // =========================================================
+    // MERGE EXISTING DATA WITH REQUEST
+    // =========================================================
+
+    const serviceTypeId = dto.serviceTypeId ?? outbound.serviceTypeId;
+
+    const originTransferPointId =
+      dto.originTransferPointId ?? outbound.originTransferPointId;
+
+    const destinationTransferPointId =
+      dto.destinationTransferPointId ?? outbound.destinationTransferPointId;
+
+    const passengers = dto.passengers ?? outbound.passengers;
+    const luggage = dto.luggage ?? outbound.luggage;
+
+    const serviceDate =
+      dto.serviceDate ?? this.formatDate(outbound.serviceDate);
+
+    const serviceTime =
+      dto.serviceTime ?? this.formatTime(outbound.serviceTime);
+
+    const pickupDate = dto.pickupDate ?? this.formatDate(outbound.pickupDate);
+
+    const pickupTime = dto.pickupTime ?? this.formatTime(outbound.pickupTime);
+
+    const serviceTypeChanged = serviceTypeId !== outbound.serviceTypeId;
+
+    const routeChanged =
+      originTransferPointId !== outbound.originTransferPointId ||
+      destinationTransferPointId !== outbound.destinationTransferPointId;
+
+    const passengersChanged = passengers !== outbound.passengers;
+
+    const requiresQuotation =
+      serviceTypeChanged ||
+      routeChanged ||
+      passengersChanged ||
+      dto.rateId !== undefined;
+
+    // =========================================================
+    // VALIDATE SERVICE TYPE
+    // =========================================================
+
+    const serviceType = await this.prisma.serviceType.findFirst({
+      where: {
+        id: serviceTypeId,
+        status: true,
+      },
+      select: {
+        id: true,
+        code: true,
+      },
+    });
+
+    if (!serviceType) {
+      throw new NotFoundException('Active service type not found');
+    }
+
+    if (
+      serviceType.code !== ONE_WAY_SERVICE_CODE &&
+      serviceType.code !== ROUND_TRIP_SERVICE_CODE
+    ) {
+      throw new BadRequestException('Unsupported service type');
+    }
+
+    const isRoundTrip = serviceType.code === ROUND_TRIP_SERVICE_CODE;
 
     // =========================================================
     // VALIDATE QUOTATION
     // =========================================================
 
-    const quotation = await this.reservationQuoteService.quote(dto);
-
-    const selectedOption = quotation.options.find(
-      ({ rateId }) => rateId === dto.rateId,
-    );
-
-    if (!selectedOption) {
+    if (requiresQuotation && dto.rateId === undefined) {
       throw new BadRequestException(
-        'The selected rate is not available for this reservation',
+        'A new rateId is required when changing the route, passengers or service type',
+      );
+    }
+
+    if (requiresQuotation) {
+      const quotation = await this.reservationQuoteService.quoteTransfer(
+        reservationId,
+        {
+          originTransferPointId,
+          destinationTransferPointId,
+          serviceTypeId,
+          passengers,
+        },
+      );
+
+      const selectedOption = quotation.options.find(
+        ({ rateId }) => rateId === dto.rateId,
+      );
+
+      if (!selectedOption) {
+        throw new BadRequestException(
+          'The selected rate is not available for this transfer',
+        );
+      }
+    }
+
+    // =========================================================
+    // RESOLVE RETURN INFORMATION
+    // =========================================================
+
+    const returnFields = [
+      dto.returnServiceDate,
+      dto.returnServiceTime,
+      dto.returnPickupDate,
+      dto.returnPickupTime,
+      dto.returnFlightNumber,
+      dto.returnAirlineId,
+    ];
+
+    if (!isRoundTrip && returnFields.some((value) => value !== undefined)) {
+      throw new BadRequestException(
+        'Return information is not allowed for a one-way service',
+      );
+    }
+
+    const returnServiceDate =
+      dto.returnServiceDate ??
+      (existingReturn
+        ? this.formatDate(existingReturn.serviceDate)
+        : undefined);
+
+    const returnServiceTime =
+      dto.returnServiceTime ??
+      (existingReturn
+        ? this.formatTime(existingReturn.serviceTime)
+        : undefined);
+
+    const returnPickupDate =
+      dto.returnPickupDate ??
+      (existingReturn ? this.formatDate(existingReturn.pickupDate) : undefined);
+
+    const returnPickupTime =
+      dto.returnPickupTime ??
+      (existingReturn ? this.formatTime(existingReturn.pickupTime) : undefined);
+
+    if (
+      isRoundTrip &&
+      (!returnServiceDate ||
+        !returnServiceTime ||
+        !returnPickupDate ||
+        !returnPickupTime)
+    ) {
+      throw new BadRequestException(
+        'Return service and pickup date/time are required',
       );
     }
 
     // =========================================================
-    // LOAD TRANSFER POINTS AND INITIAL STATUS
+    // VALIDATE SCHEDULE
     // =========================================================
 
-    const needsInitialStatus =
-      current.transfers.length === 0 ||
-      (current.transfers.length < 2 &&
-        quotation.serviceType.code === ROUND_TRIP_SERVICE_CODE);
+    const scheduleChanged =
+      serviceTypeChanged ||
+      dto.serviceDate !== undefined ||
+      dto.serviceTime !== undefined ||
+      dto.pickupDate !== undefined ||
+      dto.pickupTime !== undefined ||
+      dto.returnServiceDate !== undefined ||
+      dto.returnServiceTime !== undefined ||
+      dto.returnPickupDate !== undefined ||
+      dto.returnPickupTime !== undefined;
 
-    const [points, initialTransferStatus] = await Promise.all([
-      this.prisma.transferPoint.findMany({
-        where: {
-          id: {
-            in: [dto.originTransferPointId, dto.destinationTransferPointId],
-          },
+    if (scheduleChanged) {
+      this.validateSchedule(
+        serviceDate,
+        serviceTime,
+        pickupDate,
+        pickupTime,
+        isRoundTrip
+          ? {
+              serviceDate: returnServiceDate!,
+              serviceTime: returnServiceTime!,
+              pickupDate: returnPickupDate!,
+              pickupTime: returnPickupTime!,
+            }
+          : null,
+      );
+    }
+
+    // =========================================================
+    // LOAD TRANSFER POINT TYPES
+    // =========================================================
+
+    const points = await this.prisma.transferPoint.findMany({
+      where: {
+        id: {
+          in: [originTransferPointId, destinationTransferPointId],
         },
-        select: {
-          id: true,
-          type: true,
+        status: true,
+        zone: {
+          status: true,
         },
-      }),
+      },
+      select: {
+        id: true,
+        type: true,
+        zoneId: true,
+      },
+    });
 
-      needsInitialStatus
-        ? this.prisma.transferStatus.findFirst({
-            where: {
-              id: INITIAL_TRANSFER_STATUS_ID,
-              status: true,
-            },
-            select: { id: true },
-          })
-        : Promise.resolve(null),
-    ]);
-
-    const origin = points.find(
-      ({ id: pointId }) => pointId === dto.originTransferPointId,
-    );
+    const origin = points.find((item) => item.id === originTransferPointId);
 
     const destination = points.find(
-      ({ id: pointId }) => pointId === dto.destinationTransferPointId,
+      (item) => item.id === destinationTransferPointId,
     );
 
     if (!origin || !destination) {
       throw new NotFoundException(
-        'Origin or destination transfer point not found',
+        'Active origin or destination transfer point not found',
       );
     }
 
-    if (needsInitialStatus && !initialTransferStatus) {
-      throw new NotFoundException(
-        `Active initial transfer status ${INITIAL_TRANSFER_STATUS_ID} not found`,
-      );
+    if (origin.id === destination.id) {
+      throw new BadRequestException('Origin and destination must be different');
     }
-
-    // =========================================================
-    // CALCULATE TOTALS
-    // =========================================================
-
-    const subtotal = selectedOption.price;
-
-    const calculatedTotal = subtotal.minus(current.discount);
-
-    const total = calculatedTotal.isNegative()
-      ? new Prisma.Decimal(0)
-      : calculatedTotal;
-
-    const calculatedPending = total.minus(current.paidAmount);
-
-    const pendingAmount = calculatedPending.isNegative()
-      ? new Prisma.Decimal(0)
-      : calculatedPending;
-
-    // =========================================================
-    // PREPARE OUTBOUND TRANSFER
-    // =========================================================
 
     const outboundSegment = this.resolveSegment(
       origin.type,
@@ -170,167 +445,259 @@ export class ReservationUpdateService {
       false,
     );
 
-    const transferGroupUuid =
-      current.transfers[0]?.transferGroupUuid ?? randomUUID();
-
-    const outboundData = {
-      serviceTypeId: dto.serviceTypeId,
-      vehicleId: selectedOption.vehicle.id,
-      rateId: dto.rateId,
-
-      originTransferPointId: dto.originTransferPointId,
-      destinationTransferPointId: dto.destinationTransferPointId,
-
-      segmentLeg: outboundSegment.leg,
-      segmentType: outboundSegment.type,
-
-      pickupDate: this.toDatabaseDate(dto.pickupDate),
-      pickupTime: this.toDatabaseTime(dto.pickupTime),
-      serviceDate: this.toDatabaseDate(dto.serviceDate),
-      serviceTime: this.toDatabaseTime(dto.serviceTime),
-
-      passengers: dto.passengers,
-      luggage: dto.luggage,
-
-      flightNumber: dto.flightNumber ?? null,
-      airlineId: dto.airlineId ?? null,
-    };
+    const returnSegment = isRoundTrip
+      ? this.resolveSegment(destination.type, origin.type, true)
+      : null;
 
     // =========================================================
-    // UPDATE RESERVATION AND TRANSFERS
+    // VALIDATE NEW AIRLINES
     // =========================================================
 
-    await this.prisma.$transaction(async (tx) => {
-      // Update reservation totals
+    const airlineIds = [dto.airlineId, dto.returnAirlineId].filter(
+      (id): id is number => typeof id === 'number',
+    );
 
-      await tx.reservation.update({
-        where: { id },
-        data: {
-          currencyId: dto.currencyId,
-          subtotal,
-          total,
-          pendingAmount,
+    if (airlineIds.length > 0) {
+      const airlines = await this.prisma.airline.findMany({
+        where: {
+          id: { in: airlineIds },
+          status: true,
         },
+        select: { id: true },
       });
 
-      // Update reservation customer
+      const validIds = new Set(airlines.map((item) => item.id));
 
-      if (current.reservationCustomerId) {
-        await tx.reservationCustomer.update({
+      if (airlineIds.some((id) => !validIds.has(id))) {
+        throw new NotFoundException('Active airline not found');
+      }
+    }
+
+    // =========================================================
+    // UPDATE GROUP AND RECALCULATE TOTALS
+    // =========================================================
+
+    await this.prisma.$transaction(
+      async (tx) => {
+        const reservation = await tx.reservation.findUnique({
+          where: { id: reservationId },
+          select: {
+            currencyId: true,
+            discount: true,
+            paidAmount: true,
+            reservationStatus: {
+              select: { code: true },
+            },
+          },
+        });
+
+        if (!reservation) {
+          throw new NotFoundException('Reservation not found');
+        }
+
+        if (reservation.reservationStatus.code === CANCELLED_STATUS_CODE) {
+          throw new BadRequestException(
+            'A cancelled reservation cannot be updated',
+          );
+        }
+
+        // Revalidate that the group has not changed.
+
+        const currentGroup = await tx.reservationTransfer.findMany({
           where: {
-            id: current.reservationCustomerId,
+            reservationId,
+            transferGroupUuid: current.transferGroupUuid,
           },
-          data: {
-            firstName: dto.customer.firstName.trim(),
-            lastName: dto.customer.lastName.trim(),
-            email: dto.customer.email.trim().toLowerCase(),
-            phone: dto.customer.phone?.trim() ?? null,
-            countryId: dto.customer.countryId ?? null,
+          select: {
+            id: true,
+            serviceTypeId: true,
+            rateId: true,
+            vehicleId: true,
+            transferStatusId: true,
           },
-        });
-      } else {
-        const customer = await tx.reservationCustomer.create({
-          data: {
-            firstName: dto.customer.firstName.trim(),
-            lastName: dto.customer.lastName.trim(),
-            email: dto.customer.email.trim().toLowerCase(),
-            phone: dto.customer.phone?.trim(),
-            countryId: dto.customer.countryId,
-          },
-          select: { id: true },
+          orderBy: { id: 'asc' },
         });
 
-        await tx.reservation.update({
-          where: { id },
-          data: {
-            reservationCustomerId: customer.id,
-          },
-        });
-      }
+        if (
+          currentGroup.length !== group.length ||
+          currentGroup.some(
+            (item, index) =>
+              item.id !== group[index].id ||
+              item.serviceTypeId !== group[index].serviceTypeId ||
+              item.rateId !== group[index].rateId ||
+              item.vehicleId !== group[index].vehicleId ||
+              item.transferStatusId !== INITIAL_TRANSFER_STATUS_ID,
+          )
+        ) {
+          throw new BadRequestException(
+            'Transfer group has changed. Please reload and try again',
+          );
+        }
 
-      // Create or update outbound transfer
+        let rateId = outbound.rateId;
+        let vehicleId = outbound.vehicleId;
+        let price = outbound.price;
 
-      const outboundTransfer = current.transfers[0];
-
-      if (outboundTransfer) {
-        await tx.reservationTransfer.update({
-          where: { id: outboundTransfer.id },
-          data: outboundData,
-        });
-      } else {
-        await tx.reservationTransfer.create({
-          data: {
-            ...outboundData,
-            reservationId: id,
-            transferGroupUuid,
-            transferStatusId: initialTransferStatus!.id,
-          },
-        });
-      }
-
-      // Create, update or remove return transfer
-
-      const returnTransfer = current.transfers[1];
-
-      if (quotation.serviceType.code === ROUND_TRIP_SERVICE_CODE) {
-        const returnSegment = this.resolveSegment(
-          destination.type,
-          origin.type,
-          true,
-        );
-
-        const returnData = {
-          serviceTypeId: dto.serviceTypeId,
-          vehicleId: selectedOption.vehicle.id,
-          rateId: dto.rateId,
-
-          originTransferPointId: dto.destinationTransferPointId,
-
-          destinationTransferPointId: dto.originTransferPointId,
-
-          segmentLeg: returnSegment.leg,
-          segmentType: returnSegment.type,
-
-          pickupDate: this.toDatabaseDate(dto.returnPickupDate!),
-          pickupTime: this.toDatabaseTime(dto.returnPickupTime!),
-
-          serviceDate: this.toDatabaseDate(dto.returnServiceDate!),
-          serviceTime: this.toDatabaseTime(dto.returnServiceTime!),
-
-          passengers: dto.passengers,
-          luggage: dto.luggage,
-
-          flightNumber: dto.returnFlightNumber ?? null,
-          airlineId: dto.returnAirlineId ?? null,
-        };
-
-        if (returnTransfer) {
-          await tx.reservationTransfer.update({
-            where: { id: returnTransfer.id },
-            data: returnData,
-          });
-        } else {
-          await tx.reservationTransfer.create({
-            data: {
-              ...returnData,
-              reservationId: id,
-              transferGroupUuid,
-              transferStatusId: initialTransferStatus!.id,
+        if (requiresQuotation) {
+          const rate = await tx.rate.findFirst({
+            where: {
+              id: dto.rateId!,
+              originZoneId: origin.zoneId,
+              destinationZoneId: destination.zoneId,
+              currencyId: reservation.currencyId,
+              serviceTypeId,
+              status: true,
+              vehicle: {
+                status: true,
+                minPax: { lte: passengers },
+                maxPax: { gte: passengers },
+              },
+            },
+            select: {
+              id: true,
+              vehicleId: true,
+              price: true,
             },
           });
+
+          if (!rate) {
+            throw new BadRequestException(
+              'The selected rate is no longer available',
+            );
+          }
+
+          rateId = rate.id;
+          vehicleId = rate.vehicleId;
+          price = rate.price;
         }
-      } else if (returnTransfer) {
-        await tx.reservationTransfer.delete({
-          where: { id: returnTransfer.id },
+
+        // Update outbound transfer.
+
+        await tx.reservationTransfer.update({
+          where: { id: outbound.id },
+          data: {
+            serviceTypeId,
+            vehicleId,
+            rateId,
+            price,
+
+            originTransferPointId,
+            destinationTransferPointId,
+
+            segmentLeg: outboundSegment.leg,
+            segmentType: outboundSegment.type,
+
+            pickupDate: this.toDatabaseDate(pickupDate),
+            pickupTime: this.toDatabaseTime(pickupTime),
+            serviceDate: this.toDatabaseDate(serviceDate),
+            serviceTime: this.toDatabaseTime(serviceTime),
+
+            passengers,
+            luggage,
+
+            flightNumber:
+              dto.flightNumber === undefined
+                ? undefined
+                : dto.flightNumber?.trim() || null,
+
+            airlineId: dto.airlineId,
+          },
         });
-      }
-    });
 
-    // =========================================================
-    // RETURN UPDATED RESERVATION
-    // =========================================================
+        // Update, create or remove return transfer.
 
-    return this.reservationDetailService.findOne(id);
+        if (isRoundTrip && returnSegment) {
+          const returnData = {
+            serviceTypeId,
+            vehicleId,
+            rateId,
+            price: new Prisma.Decimal(0),
+
+            originTransferPointId: destinationTransferPointId,
+
+            destinationTransferPointId: originTransferPointId,
+
+            segmentLeg: returnSegment.leg,
+            segmentType: returnSegment.type,
+
+            pickupDate: this.toDatabaseDate(returnPickupDate!),
+            pickupTime: this.toDatabaseTime(returnPickupTime!),
+            serviceDate: this.toDatabaseDate(returnServiceDate!),
+            serviceTime: this.toDatabaseTime(returnServiceTime!),
+
+            passengers,
+            luggage,
+
+            flightNumber:
+              dto.returnFlightNumber === undefined
+                ? (existingReturn?.flightNumber ?? null)
+                : dto.returnFlightNumber?.trim() || null,
+
+            airlineId:
+              dto.returnAirlineId === undefined
+                ? (existingReturn?.airlineId ?? null)
+                : dto.returnAirlineId,
+          };
+
+          if (existingReturn) {
+            await tx.reservationTransfer.update({
+              where: { id: existingReturn.id },
+              data: returnData,
+            });
+          } else {
+            await tx.reservationTransfer.create({
+              data: {
+                ...returnData,
+                reservationId,
+                transferGroupUuid: current.transferGroupUuid,
+                transferStatusId: INITIAL_TRANSFER_STATUS_ID,
+              },
+            });
+          }
+        } else if (existingReturn) {
+          await tx.reservationTransfer.delete({
+            where: { id: existingReturn.id },
+          });
+        }
+
+        // Recalculate reservation amounts.
+
+        const totals = await tx.reservationTransfer.aggregate({
+          where: { reservationId },
+          _sum: {
+            price: true,
+          },
+        });
+
+        const subtotal = totals._sum.price ?? new Prisma.Decimal(0);
+
+        const calculatedTotal = subtotal.minus(reservation.discount);
+
+        const total = calculatedTotal.isNegative()
+          ? new Prisma.Decimal(0)
+          : calculatedTotal;
+
+        const calculatedPending = total.minus(reservation.paidAmount);
+
+        const pendingAmount = calculatedPending.isNegative()
+          ? new Prisma.Decimal(0)
+          : calculatedPending;
+
+        await tx.reservation.update({
+          where: { id: reservationId },
+          data: {
+            subtotal,
+            total,
+            pendingAmount,
+          },
+        });
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      },
+    );
+
+    return this.reservationDetailService.findOne(reservationId);
   }
 
   // =========================================================
@@ -383,14 +750,101 @@ export class ReservationUpdateService {
   }
 
   // =========================================================
-  // DATABASE DATE UTILITIES
+  // VALIDATE SCHEDULE
   // =========================================================
 
-  private toDatabaseDate(date: string): Date {
-    return new Date(`${date}T00:00:00.000Z`);
+  private validateSchedule(
+    serviceDate: string,
+    serviceTime: string,
+    pickupDate: string,
+    pickupTime: string,
+    returnSchedule: {
+      serviceDate: string;
+      serviceTime: string;
+      pickupDate: string;
+      pickupTime: string;
+    } | null,
+  ): void {
+    const now = Date.now();
+
+    const serviceAt = this.toCancunTimestamp(serviceDate, serviceTime);
+
+    const pickupAt = this.toCancunTimestamp(pickupDate, pickupTime);
+
+    if (serviceAt < now || pickupAt < now) {
+      throw new BadRequestException(
+        'Service and pickup date/time cannot be in the past',
+      );
+    }
+
+    if (!returnSchedule) {
+      return;
+    }
+
+    const returnServiceAt = this.toCancunTimestamp(
+      returnSchedule.serviceDate,
+      returnSchedule.serviceTime,
+    );
+
+    const returnPickupAt = this.toCancunTimestamp(
+      returnSchedule.pickupDate,
+      returnSchedule.pickupTime,
+    );
+
+    if (returnServiceAt < now || returnPickupAt < now) {
+      throw new BadRequestException(
+        'Return service and pickup date/time cannot be in the past',
+      );
+    }
+
+    if (returnServiceAt <= serviceAt || returnPickupAt <= pickupAt) {
+      throw new BadRequestException(
+        'Return date/time must be later than outbound date/time',
+      );
+    }
   }
 
-  private toDatabaseTime(time: string): Date {
-    return new Date(`1970-01-01T${time}:00.000Z`);
+  // =========================================================
+  // DATE UTILITIES
+  // =========================================================
+
+  private formatDate(value: Date): string {
+    return value.toISOString().slice(0, 10);
+  }
+
+  private formatTime(value: Date): string {
+    return value.toISOString().slice(11, 16);
+  }
+
+  private toDatabaseDate(value: string): Date {
+    this.validateCalendarDate(value);
+    return new Date(`${value}T00:00:00.000Z`);
+  }
+
+  private toDatabaseTime(value: string): Date {
+    return new Date(`1970-01-01T${value}:00.000Z`);
+  }
+
+  private toCancunTimestamp(date: string, time: string): number {
+    this.validateCalendarDate(date);
+
+    const timestamp = Date.parse(`${date}T${time}:00${CANCUN_UTC_OFFSET}`);
+
+    if (Number.isNaN(timestamp)) {
+      throw new BadRequestException('Invalid service or pickup date/time');
+    }
+
+    return timestamp;
+  }
+
+  private validateCalendarDate(value: string): void {
+    const date = new Date(`${value}T00:00:00.000Z`);
+
+    if (
+      Number.isNaN(date.getTime()) ||
+      date.toISOString().slice(0, 10) !== value
+    ) {
+      throw new BadRequestException('Invalid calendar date');
+    }
   }
 }

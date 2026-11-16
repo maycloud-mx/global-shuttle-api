@@ -39,6 +39,17 @@ export class CurrenciesController {
     return this.currenciesService.findAll(query);
   }
 
+  // =========================================================
+  // GET ACTIVE CURRENCY OPTIONS
+  // =========================================================
+
+  @Get('options')
+  @RequirePermissions(CURRENCY_PERMISSIONS.LIST)
+  @ApiMessage('Currency options retrieved successfully')
+  findOptions() {
+    return this.currenciesService.findOptions();
+  }
+
   @Get(':id')
   @RequirePermissions(CURRENCY_PERMISSIONS.VIEW)
   @ApiMessage('Currency retrieved successfully')

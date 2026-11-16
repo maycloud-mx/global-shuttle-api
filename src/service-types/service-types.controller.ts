@@ -39,6 +39,17 @@ export class ServiceTypesController {
     return this.serviceTypesService.findAll(query);
   }
 
+  // =========================================================
+  // GET ACTIVE SERVICE TYPE OPTIONS
+  // =========================================================
+
+  @Get('options')
+  @RequirePermissions(SERVICE_TYPE_PERMISSIONS.LIST)
+  @ApiMessage('Service type options retrieved successfully')
+  findOptions() {
+    return this.serviceTypesService.findOptions();
+  }
+
   @Get(':id')
   @RequirePermissions(SERVICE_TYPE_PERMISSIONS.VIEW)
   @ApiMessage('Service type retrieved successfully')

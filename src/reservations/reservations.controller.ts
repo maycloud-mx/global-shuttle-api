@@ -19,8 +19,6 @@ import { ApiMessage } from '../http/api-message.decorator.js';
 
 import { CreateReservationDto } from './dto/create-reservation.dto.js';
 import { ListReservationsDto } from './dto/list-reservations.dto.js';
-import { QuoteReservationDto } from './dto/quote-reservation.dto.js';
-import { RequoteReservationDto } from './dto/requote-reservation.dto.js';
 import { SendQuoteEmailDto } from './dto/send-quote-email.dto.js';
 import { UpdateReservationDto } from './dto/update-reservation.dto.js';
 
@@ -33,6 +31,10 @@ import { ReservationCreateService } from './services/reservation-create.service.
 import { ReservationUpdateService } from './services/reservation-update.service.js';
 import { ReservationStatusService } from './services/reservation-status.service.js';
 import { ReservationEmailService } from './services/reservation-email.service.js';
+import { QuoteReservationTransferDto } from './dto/quote-reservation-transfer.dto.js';
+import { ReservationTransferCreateService } from './services/reservation-transfer-create.service.js';
+import { CreateReservationTransferDto } from './dto/create-reservation-transfer.dto.js';
+import { UpdateReservationTransferDto } from './dto/update-reservation-transfer.dto.js';
 
 @Controller('admin/reservations')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -45,6 +47,7 @@ export class ReservationsController {
     private readonly reservationUpdateService: ReservationUpdateService,
     private readonly reservationStatusService: ReservationStatusService,
     private readonly reservationEmailService: ReservationEmailService,
+    private readonly reservationTransferCreateService: ReservationTransferCreateService,
   ) {}
 
   // =========================================================
@@ -59,16 +62,18 @@ export class ReservationsController {
   }
 
   // =========================================================
-  // QUOTE RESERVATION
+  // QUOTE RESERVATION TRANSFER
   // =========================================================
 
-  @Post('quote')
+  @Post(':id/transfers/quote')
   @RequirePermissions(RESERVATION_PERMISSIONS.QUOTE)
-  @ApiMessage('Reservation quote retrieved successfully')
-  quote(@Body() dto: QuoteReservationDto) {
-    return this.reservationQuoteService.quote(dto);
+  @ApiMessage('Transfer quote retrieved successfully')
+  quoteTransfer(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: QuoteReservationTransferDto,
+  ) {
+    return this.reservationQuoteService.quoteTransfer(id, dto);
   }
-
   // =========================================================
   // CREATE RESERVATION
   // =========================================================
@@ -95,34 +100,6 @@ export class ReservationsController {
   }
 
   // =========================================================
-  // REQUOTE RESERVATION
-  // =========================================================
-
-  @Post(':id/requote')
-  @RequirePermissions(RESERVATION_PERMISSIONS.REQUOTE)
-  @ApiMessage('Reservation requoted successfully')
-  requote(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: RequoteReservationDto,
-  ) {
-    return this.reservationQuoteService.requote(id, dto);
-  }
-
-  // =========================================================
-  // UPDATE RESERVATION
-  // =========================================================
-
-  @Patch(':id')
-  @RequirePermissions(RESERVATION_PERMISSIONS.UPDATE)
-  @ApiMessage('Reservation updated successfully')
-  update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: UpdateReservationDto,
-  ) {
-    return this.reservationUpdateService.update(id, dto);
-  }
-
-  // =========================================================
   // SEND QUOTE EMAIL
   // =========================================================
 
@@ -134,6 +111,49 @@ export class ReservationsController {
     @Body() dto: SendQuoteEmailDto,
   ) {
     return this.reservationEmailService.sendQuoteEmail(id, dto);
+  }
+
+  // =========================================================
+  // CREATE RESERVATION TRANSFER
+  // =========================================================
+
+  @Post(':id/transfers')
+  @RequirePermissions(RESERVATION_PERMISSIONS.CREATE_TRANSFER)
+  @ApiMessage('Reservation transfer created successfully')
+  createTransfer(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateReservationTransferDto,
+  ) {
+    return this.reservationTransferCreateService.create(id, dto);
+  }
+
+  // =========================================================
+  // UPDATE RESERVATION CUSTOMER
+  // =========================================================
+
+  @Patch(':id')
+  @RequirePermissions(RESERVATION_PERMISSIONS.UPDATE)
+  @ApiMessage('Reservation customer updated successfully')
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateReservationDto,
+  ) {
+    return this.reservationUpdateService.update(id, dto);
+  }
+
+  // =========================================================
+  // UPDATE RESERVATION TRANSFER
+  // =========================================================
+
+  @Patch(':id/transfers/:transferId')
+  @RequirePermissions(RESERVATION_PERMISSIONS.UPDATE)
+  @ApiMessage('Reservation transfer updated successfully')
+  updateTransfer(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('transferId', ParseIntPipe) transferId: number,
+    @Body() dto: UpdateReservationTransferDto,
+  ) {
+    return this.reservationUpdateService.updateTransfer(id, transferId, dto);
   }
 
   // =========================================================
