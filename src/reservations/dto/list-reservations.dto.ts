@@ -1,6 +1,6 @@
+
 import { Type } from 'class-transformer';
 import {
-  IsDateString,
   IsInt,
   IsOptional,
   IsString,
@@ -11,23 +11,35 @@ import {
 } from 'class-validator';
 
 export class ListReservationsDto {
+  // =========================================================
+  // PAGINATION
+  // =========================================================
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  page = 1;
+  page?: number = 1;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(100)
-  limit = 20;
+  limit?: number = 20;
+
+  // =========================================================
+  // GENERAL SEARCH
+  // =========================================================
 
   @IsOptional()
   @IsString()
   @MaxLength(191)
   search?: string;
+
+  // =========================================================
+  // RESERVATION STATUS
+  // =========================================================
 
   @IsOptional()
   @Type(() => Number)
@@ -35,34 +47,17 @@ export class ListReservationsDto {
   @Min(1)
   reservationStatusId?: number;
 
+  // =========================================================
+  // CREATION DATE FILTERS
+  // =========================================================
+
   @IsOptional()
   @IsString()
-  @MaxLength(50)
-  paymentStatus?: string;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  currencyId?: number;
-
-  @IsOptional()
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
-  @IsDateString({ strict: true })
   createdDateFrom?: string;
 
   @IsOptional()
+  @IsString()
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
-  @IsDateString({ strict: true })
   createdDateTo?: string;
-
-  @IsOptional()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/)
-  @IsDateString({ strict: true })
-  serviceDateFrom?: string;
-
-  @IsOptional()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/)
-  @IsDateString({ strict: true })
-  serviceDateTo?: string;
 }
