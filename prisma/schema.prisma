@@ -511,3 +511,11 @@ model ReservationTransfer {
   @@index([serviceDate, serviceTime])
   @@map("reservation_transfers")
 }
+
+model ReservationFolioCounter {
+  period    String   @id @db.Char(4)
+  sequence  Int      @default(0) @db.UnsignedInt
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("reservation_folio_counters")
+}

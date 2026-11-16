@@ -1,12 +1,19 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 
+import { Prisma } from '../../generated/prisma/index.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 
 import type { CreateReservationDto } from '../dto/create-reservation.dto.js';
 
 const QUOTATION_STATUS_CODE = 'QUOTATION';
 const CANCUN_TIME_ZONE = 'America/Cancun';
+
+const MAX_MONTHLY_SEQUENCE = 9999;
+const MAX_TRANSACTION_ATTEMPTS = 5;
 
 @Injectable()
 export class ReservationCreateService {
@@ -76,113 +83,200 @@ export class ReservationCreateService {
     }
 
     // =========================================================
-    // CREATE RESERVATION
+    // RESOLVE MONTHLY PERIOD
     // =========================================================
 
-    return this.prisma.reservation.create({
-      data: {
-        folio: this.generateFolio(),
+    const period = this.getCancunPeriod();
 
-        currency: {
-          connect: { id: currency.id },
-        },
+    // =========================================================
+    // CREATE RESERVATION WITH MONTHLY FOLIO
+    // =========================================================
 
-        subtotal: 0,
-        discount: 0,
-        total: 0,
-        paidAmount: 0,
-        pendingAmount: 0,
+    for (let attempt = 1; attempt <= MAX_TRANSACTION_ATTEMPTS; attempt++) {
+      try {
+        return await this.prisma.$transaction(
+          async (tx) => {
+            // =================================================
+            // GET NEXT MONTHLY SEQUENCE
+            // =================================================
 
-        reservationStatus: {
-          connect: { id: reservationStatus.id },
-        },
-
-        paymentStatus: 'PENDING',
-        source: 'ADMIN',
-
-        createdBy: {
-          connect: { id: userId },
-        },
-
-        reservationCustomer: {
-          create: {
-            firstName: dto.customer.firstName.trim(),
-            lastName: dto.customer.lastName.trim(),
-            email: dto.customer.email.trim().toLowerCase(),
-            phone: dto.customer.phone?.trim() || null,
-
-            country: dto.customer.countryId
-              ? {
-                  connect: { id: dto.customer.countryId },
-                }
-              : undefined,
-          },
-        },
-      },
-
-      include: {
-        currency: {
-          select: {
-            id: true,
-            name: true,
-            code: true,
-          },
-        },
-
-        reservationStatus: {
-          select: {
-            id: true,
-            name: true,
-            code: true,
-          },
-        },
-
-        reservationCustomer: {
-          include: {
-            country: {
-              select: {
-                id: true,
-                name: true,
-                iso2: true,
-                phoneCode: true,
+            const counter = await tx.reservationFolioCounter.upsert({
+              where: {
+                period,
               },
-            },
-          },
-        },
+              create: {
+                period,
+                sequence: 1,
+              },
+              update: {
+                sequence: {
+                  increment: 1,
+                },
+              },
+              select: {
+                sequence: true,
+              },
+            });
 
-        createdBy: {
-          select: {
-            id: true,
-            username: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
+            if (counter.sequence > MAX_MONTHLY_SEQUENCE) {
+              throw new ConflictException(
+                'Monthly reservation folio limit reached',
+              );
+            }
 
-        transfers: true,
-      },
-    });
+            // =================================================
+            // GENERATE FOLIO
+            // =================================================
+
+            const folio = this.generateFolio(period, counter.sequence);
+
+            // =================================================
+            // CREATE RESERVATION
+            // =================================================
+
+            return tx.reservation.create({
+              data: {
+                folio,
+
+                currency: {
+                  connect: {
+                    id: currency.id,
+                  },
+                },
+
+                subtotal: 0,
+                discount: 0,
+                total: 0,
+                paidAmount: 0,
+                pendingAmount: 0,
+
+                reservationStatus: {
+                  connect: {
+                    id: reservationStatus.id,
+                  },
+                },
+
+                paymentStatus: 'PENDING',
+                source: 'ADMIN',
+
+                createdBy: {
+                  connect: {
+                    id: userId,
+                  },
+                },
+
+                reservationCustomer: {
+                  create: {
+                    firstName: dto.customer.firstName.trim(),
+
+                    lastName: dto.customer.lastName.trim(),
+
+                    email: dto.customer.email.trim().toLowerCase(),
+
+                    phone: dto.customer.phone?.trim() || null,
+
+                    country: dto.customer.countryId
+                      ? {
+                          connect: {
+                            id: dto.customer.countryId,
+                          },
+                        }
+                      : undefined,
+                  },
+                },
+              },
+
+              include: {
+                currency: {
+                  select: {
+                    id: true,
+                    name: true,
+                    code: true,
+                  },
+                },
+
+                reservationStatus: {
+                  select: {
+                    id: true,
+                    name: true,
+                    code: true,
+                  },
+                },
+
+                reservationCustomer: {
+                  include: {
+                    country: {
+                      select: {
+                        id: true,
+                        name: true,
+                        iso2: true,
+                        phoneCode: true,
+                      },
+                    },
+                  },
+                },
+
+                createdBy: {
+                  select: {
+                    id: true,
+                    username: true,
+                    firstName: true,
+                    lastName: true,
+                  },
+                },
+
+                transfers: true,
+              },
+            });
+          },
+          {
+            isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          },
+        );
+      } catch (error) {
+        // =====================================================
+        // RETRY TRANSACTION CONFLICTS
+        // =====================================================
+
+        const isRetryable =
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          (error.code === 'P2034' || error.code === 'P2002');
+
+        if (!isRetryable || attempt === MAX_TRANSACTION_ATTEMPTS) {
+          throw error;
+        }
+      }
+    }
+
+    throw new ConflictException(
+      'Unable to generate a unique reservation folio',
+    );
+  }
+
+  // =========================================================
+  // GET CURRENT PERIOD IN CANCUN
+  // =========================================================
+
+  private getCancunPeriod(): string {
+    const dateParts = new Intl.DateTimeFormat('en-US', {
+      timeZone: CANCUN_TIME_ZONE,
+      year: '2-digit',
+      month: '2-digit',
+    }).formatToParts(new Date());
+
+    const getPart = (type: Intl.DateTimeFormatPartTypes) =>
+      dateParts.find((part) => part.type === type)?.value ?? '';
+
+    return `${getPart('year')}${getPart('month')}`;
   }
 
   // =========================================================
   // GENERATE RESERVATION FOLIO
   // =========================================================
 
-  private generateFolio(): string {
-    const dateParts = new Intl.DateTimeFormat('en-GB', {
-      timeZone: CANCUN_TIME_ZONE,
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    }).formatToParts(new Date());
+  private generateFolio(period: string, sequence: number): string {
+    const consecutive = sequence.toString().padStart(4, '0');
 
-    const getPart = (type: Intl.DateTimeFormatPartTypes) =>
-      dateParts.find((part) => part.type === type)?.value ?? '';
-
-    const date = `${getPart('day')}${getPart('month')}${getPart('year')}`;
-
-    const suffix = randomUUID().slice(0, 8).toUpperCase();
-
-    return `GS-${date}-${suffix}`;
+    return `GS-${period}-${consecutive}`;
   }
 }
