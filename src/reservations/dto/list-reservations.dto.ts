@@ -1,20 +1,16 @@
 import { Type } from 'class-transformer';
 import {
   IsDateString,
-  IsEnum,
   IsInt,
   IsOptional,
   IsString,
+  Matches,
   Max,
   MaxLength,
   Min,
 } from 'class-validator';
-import {
-  ReservationTransferSegmentLeg,
-  ReservationTransferSegmentType,
-} from '../../generated/prisma/index.js';
 
-export class ListReservationTransfersDto {
+export class ListReservationsDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -34,24 +30,10 @@ export class ListReservationTransfersDto {
   search?: string;
 
   @IsOptional()
-  @IsEnum(ReservationTransferSegmentLeg)
-  segmentLeg?: ReservationTransferSegmentLeg;
-
-  @IsOptional()
-  @IsEnum(ReservationTransferSegmentType)
-  segmentType?: ReservationTransferSegmentType;
-
-  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
   reservationStatusId?: number;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  transferStatusId?: number;
 
   @IsOptional()
   @IsString()
@@ -59,10 +41,28 @@ export class ListReservationTransfersDto {
   paymentStatus?: string;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  currencyId?: number;
+
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  @IsDateString({ strict: true })
+  createdDateFrom?: string;
+
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  @IsDateString({ strict: true })
+  createdDateTo?: string;
+
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
   @IsDateString({ strict: true })
   serviceDateFrom?: string;
 
   @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
   @IsDateString({ strict: true })
   serviceDateTo?: string;
 }
