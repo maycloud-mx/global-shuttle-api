@@ -1,4 +1,3 @@
-
 import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { Prisma } from '../../generated/prisma/index.js';
@@ -86,9 +85,7 @@ export class ReservationDetailService {
       // The first created transfer represents outbound.
       // The second, when present, represents return.
 
-      const orderedTransfers = [...groupTransfers].sort(
-        (a, b) => a.id - b.id,
-      );
+      const orderedTransfers = [...groupTransfers].sort((a, b) => a.id - b.id);
 
       const firstTransfer = orderedTransfers[0];
 

@@ -1,4 +1,3 @@
-
 import { Prisma } from '../../generated/prisma/index.js';
 
 // =========================================================
@@ -86,11 +85,7 @@ export const reservationDetailInclude = {
       airline: true,
     },
 
-    orderBy: [
-      { serviceDate: 'asc' },
-      { serviceTime: 'asc' },
-      { id: 'asc' },
-    ],
+    orderBy: [{ serviceDate: 'asc' }, { serviceTime: 'asc' }, { id: 'asc' }],
   },
 
   payments: {
@@ -166,8 +161,7 @@ export type ReservationDetail = Prisma.ReservationGetPayload<{
 // RESERVATION TRANSFER TYPE
 // =========================================================
 
-export type ReservationDetailTransfer =
-  ReservationDetail['transfers'][number];
+export type ReservationDetailTransfer = ReservationDetail['transfers'][number];
 
 // =========================================================
 // RESERVATION TRANSFER GROUP

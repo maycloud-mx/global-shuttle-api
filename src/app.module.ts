@@ -18,6 +18,7 @@ import { CountriesModule } from './countries/countries.module.js';
 import { AirlinesModule } from './airlines/airlines.module.js';
 import { EmailModule } from './email/email.module.js';
 import { PublicModule } from './public/public.module.js';
+import { ReservationStatusesModule } from './reservation-statuses/reservation-statuses.module.js';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { PublicModule } from './public/public.module.js';
     AirlinesModule,
     EmailModule,
     PublicModule,
+    ReservationStatusesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,8 +1,4 @@
-
-import {
-  BadRequestException,
-  Injectable,
-} from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 
 import { Prisma } from '../../generated/prisma/index.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
@@ -29,10 +25,7 @@ export class ReservationListService {
     // VALIDATE DATE RANGE
     // =========================================================
 
-    this.validateDateRange(
-      query.createdDateFrom,
-      query.createdDateTo,
-    );
+    this.validateDateRange(query.createdDateFrom, query.createdDateTo);
 
     // =========================================================
     // RESOLVE CREATION DATE FILTER
@@ -48,9 +41,7 @@ export class ReservationListService {
     // BUILD SEARCH FILTER
     // =========================================================
 
-    const searchFilter = search
-      ? this.buildSearchFilter(search)
-      : undefined;
+    const searchFilter = search ? this.buildSearchFilter(search) : undefined;
 
     // =========================================================
     // BUILD WHERE
@@ -204,10 +195,7 @@ export class ReservationListService {
           },
         },
 
-        orderBy: [
-          { createdAt: 'desc' },
-          { id: 'desc' },
-        ],
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
 
         skip: (page - 1) * limit,
         take: limit,
@@ -256,10 +244,7 @@ export class ReservationListService {
           createdBy: {
             id: createdBy.id,
             username: createdBy.username,
-            name: [
-              createdBy.firstName,
-              createdBy.lastName,
-            ]
+            name: [createdBy.firstName, createdBy.lastName]
               .filter(Boolean)
               .join(' '),
           },
@@ -269,8 +254,7 @@ export class ReservationListService {
           paymentCount: _count.payments,
           noteCount: _count.notes,
 
-          firstServiceDate:
-            transfers[0]?.serviceDate ?? null,
+          firstServiceDate: transfers[0]?.serviceDate ?? null,
 
           lastServiceDate:
             transfers.length > 0
@@ -302,9 +286,7 @@ export class ReservationListService {
   // BUILD SEARCH FILTER
   // =========================================================
 
-  private buildSearchFilter(
-    search: string,
-  ): Prisma.ReservationWhereInput[] {
+  private buildSearchFilter(search: string): Prisma.ReservationWhereInput[] {
     const terms = search.split(/\s+/).filter(Boolean);
 
     const customerFilters: Prisma.ReservationCustomerWhereInput[] = [
@@ -403,10 +385,7 @@ export class ReservationListService {
   // VALIDATE DATE RANGE
   // =========================================================
 
-  private validateDateRange(
-    from?: string,
-    to?: string,
-  ): void {
+  private validateDateRange(from?: string, to?: string): void {
     if (from) {
       this.validateCalendarDate(from);
     }
@@ -437,11 +416,7 @@ export class ReservationListService {
     const getPart = (type: Intl.DateTimeFormatPartTypes) =>
       parts.find((part) => part.type === type)?.value ?? '';
 
-    return [
-      getPart('year'),
-      getPart('month'),
-      getPart('day'),
-    ].join('-');
+    return [getPart('year'), getPart('month'), getPart('day')].join('-');
   }
 
   // =========================================================
@@ -451,9 +426,7 @@ export class ReservationListService {
   private toCancunStartOfDay(value: string): Date {
     this.validateCalendarDate(value);
 
-    return new Date(
-      `${value}T00:00:00${CANCUN_UTC_OFFSET}`,
-    );
+    return new Date(`${value}T00:00:00${CANCUN_UTC_OFFSET}`);
   }
 
   private toCancunStartOfNextDay(value: string): Date {
@@ -474,9 +447,7 @@ export class ReservationListService {
 
   private validateCalendarDate(value: string): void {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-      throw new BadRequestException(
-        'Invalid creation date format',
-      );
+      throw new BadRequestException('Invalid creation date format');
     }
 
     const date = new Date(`${value}T00:00:00.000Z`);
@@ -485,9 +456,7 @@ export class ReservationListService {
       Number.isNaN(date.getTime()) ||
       date.toISOString().slice(0, 10) !== value
     ) {
-      throw new BadRequestException(
-        'Invalid creation date',
-      );
+      throw new BadRequestException('Invalid creation date');
     }
   }
 }
