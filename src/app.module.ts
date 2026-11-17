@@ -19,6 +19,7 @@ import { AirlinesModule } from './airlines/airlines.module.js';
 import { EmailModule } from './email/email.module.js';
 import { PublicModule } from './public/public.module.js';
 import { ReservationStatusesModule } from './reservation-statuses/reservation-statuses.module.js';
+import { LogisticsModule } from './logistics/logistics.module.js';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { ReservationStatusesModule } from './reservation-statuses/reservation-st
     EmailModule,
     PublicModule,
     ReservationStatusesModule,
+    LogisticsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
