@@ -1,4 +1,3 @@
-
 import { BadRequestException, Injectable } from '@nestjs/common';
 
 import { Prisma } from '../../generated/prisma/index.js';
@@ -8,10 +7,7 @@ import type { ListLogisticsTransfersDto } from '../dto/list-logistics-transfers.
 
 const CANCUN_TIME_ZONE = 'America/Cancun';
 
-const ALLOWED_RESERVATION_STATUSES = [
-  'QUOTATION',
-  'CONFIRMED',
-];
+const ALLOWED_RESERVATION_STATUSES = ['QUOTATION', 'CONFIRMED'];
 
 @Injectable()
 export class LogisticsListService {
@@ -63,8 +59,8 @@ export class LogisticsListService {
     // GET TRANSFERS AND COUNTS
     // =========================================================
 
-    const [transfers, total, assignmentGroups] =
-      await this.prisma.$transaction([
+    const [transfers, total, assignmentGroups] = await this.prisma.$transaction(
+      [
         this.prisma.reservationTransfer.findMany({
           where,
 
@@ -252,7 +248,8 @@ export class LogisticsListService {
             _all: true,
           },
         }),
-      ]);
+      ],
+    );
 
     // =========================================================
     // CALCULATE ASSIGNMENT SUMMARY
@@ -333,10 +330,7 @@ export class LogisticsListService {
           ? {
               id: customer.id,
 
-              name: [
-                customer.firstName,
-                customer.lastName,
-              ]
+              name: [customer.firstName, customer.lastName]
                 .filter(Boolean)
                 .join(' '),
 
@@ -396,8 +390,7 @@ export class LogisticsListService {
     dateTo: string;
   } {
     const hasDateRange =
-      query.dateFrom !== undefined ||
-      query.dateTo !== undefined;
+      query.dateFrom !== undefined || query.dateTo !== undefined;
 
     // =========================================================
     // PREVENT MIXED DATE FILTERS
@@ -413,11 +406,7 @@ export class LogisticsListService {
     // VALIDATE DATE VALUES
     // =========================================================
 
-    const dates = [
-      query.date,
-      query.dateFrom,
-      query.dateTo,
-    ];
+    const dates = [query.date, query.dateFrom, query.dateTo];
 
     for (const value of dates) {
       if (value !== undefined) {
@@ -429,14 +418,8 @@ export class LogisticsListService {
     // VALIDATE DATE RANGE
     // =========================================================
 
-    if (
-      query.dateFrom &&
-      query.dateTo &&
-      query.dateFrom > query.dateTo
-    ) {
-      throw new BadRequestException(
-        'Date from cannot be later than date to',
-      );
+    if (query.dateFrom && query.dateTo && query.dateFrom > query.dateTo) {
+      throw new BadRequestException('Date from cannot be later than date to');
     }
 
     // =========================================================
@@ -548,11 +531,7 @@ export class LogisticsListService {
     const getPart = (type: Intl.DateTimeFormatPartTypes) =>
       parts.find((part) => part.type === type)?.value ?? '';
 
-    return [
-      getPart('year'),
-      getPart('month'),
-      getPart('day'),
-    ].join('-');
+    return [getPart('year'), getPart('month'), getPart('day')].join('-');
   }
 
   // =========================================================
@@ -561,9 +540,7 @@ export class LogisticsListService {
 
   private toDatabaseDate(value: string): Date {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-      throw new BadRequestException(
-        'Date must have the format YYYY-MM-DD',
-      );
+      throw new BadRequestException('Date must have the format YYYY-MM-DD');
     }
 
     const date = new Date(`${value}T00:00:00.000Z`);
@@ -572,9 +549,7 @@ export class LogisticsListService {
       Number.isNaN(date.getTime()) ||
       date.toISOString().slice(0, 10) !== value
     ) {
-      throw new BadRequestException(
-        'Invalid pickup date',
-      );
+      throw new BadRequestException('Invalid pickup date');
     }
 
     return date;
