@@ -1,5 +1,7 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+
 import {
+  IsBoolean,
   IsDateString,
   IsInt,
   IsOptional,
@@ -38,7 +40,7 @@ export class ListLogisticsTransfersDto {
   search?: string;
 
   // ============================================
-  // SINGLE DATE
+  // SINGLE DATE - BACKWARD COMPATIBILITY
   // ============================================
 
   @IsOptional()
@@ -49,7 +51,7 @@ export class ListLogisticsTransfersDto {
   date?: string;
 
   // ============================================
-  // DATE RANGE
+  // DATE FROM
   // ============================================
 
   @IsOptional()
@@ -59,10 +61,33 @@ export class ListLogisticsTransfersDto {
   })
   dateFrom?: string;
 
+  // ============================================
+  // DATE TO
+  // ============================================
+
   @IsOptional()
   @IsDateString({ strict: true })
   @Matches(/^\d{4}-\d{2}-\d{2}$/, {
     message: 'Date to must have the format YYYY-MM-DD',
   })
   dateTo?: string;
+
+  // ============================================
+  // ASSIGNMENT FILTER
+  // ============================================
+
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === 'true' || value === true) {
+      return true;
+    }
+
+    if (value === 'false' || value === false) {
+      return false;
+    }
+
+    return value;
+  })
+  @IsBoolean()
+  assigned?: boolean;
 }

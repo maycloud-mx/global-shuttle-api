@@ -34,25 +34,63 @@ export class LogisticsListService {
     };
 
     // =========================================================
+    // RESOLVE ASSIGNMENT FILTER
+    // =========================================================
+
+    const assignmentFilter = this.buildAssignmentFilter(query.assigned);
+
+    // =========================================================
     // BUILD WHERE
     // =========================================================
 
-    const where: Prisma.ReservationTransferWhereInput = {
-      pickupDate,
+    const filters: Prisma.ReservationTransferWhereInput[] = [
+      // =====================================================
+      // PICKUP DATE
+      // =====================================================
 
-      reservation: {
-        reservationStatus: {
-          code: {
-            in: ALLOWED_RESERVATION_STATUSES,
+      {
+        pickupDate,
+      },
+
+      // =====================================================
+      // ALLOWED RESERVATION STATUSES
+      // =====================================================
+
+      {
+        reservation: {
+          reservationStatus: {
+            code: {
+              in: ALLOWED_RESERVATION_STATUSES,
+            },
           },
         },
       },
+    ];
 
-      ...(search
-        ? {
-            OR: this.buildSearchFilter(search),
-          }
-        : {}),
+    // =========================================================
+    // SEARCH FILTER
+    // =========================================================
+
+    if (search) {
+      filters.push({
+        OR: this.buildSearchFilter(search),
+      });
+    }
+
+    // =========================================================
+    // ASSIGNMENT FILTER
+    // =========================================================
+
+    if (assignmentFilter) {
+      filters.push(assignmentFilter);
+    }
+
+    // =========================================================
+    // FINAL WHERE
+    // =========================================================
+
+    const where: Prisma.ReservationTransferWhereInput = {
+      AND: filters,
     };
 
     // =========================================================
@@ -61,6 +99,10 @@ export class LogisticsListService {
 
     const [transfers, total, assignmentGroups] = await this.prisma.$transaction(
       [
+        // =====================================================
+        // LIST TRANSFERS
+        // =====================================================
+
         this.prisma.reservationTransfer.findMany({
           where,
 
@@ -74,6 +116,7 @@ export class LogisticsListService {
 
             serviceDate: true,
             serviceTime: true,
+
             pickupDate: true,
             pickupTime: true,
 
@@ -115,6 +158,7 @@ export class LogisticsListService {
                     id: true,
                     firstName: true,
                     lastName: true,
+
                     email: true,
                     phone: true,
 
@@ -153,7 +197,7 @@ export class LogisticsListService {
             },
 
             // =================================================
-            // ORIGIN
+            // ORIGIN TRANSFER POINT
             // =================================================
 
             originTransferPoint: {
@@ -173,7 +217,7 @@ export class LogisticsListService {
             },
 
             // =================================================
-            // DESTINATION
+            // DESTINATION TRANSFER POINT
             // =================================================
 
             destinationTransferPoint: {
@@ -217,18 +261,26 @@ export class LogisticsListService {
             },
           },
 
+          // =================================================
+          // ORDER BY PICKUP DATE AND TIME
+          // =================================================
+
           orderBy: [
             { pickupDate: 'asc' },
             { pickupTime: 'asc' },
             { id: 'asc' },
           ],
 
+          // =================================================
+          // PAGINATION
+          // =================================================
+
           skip: (page - 1) * limit,
           take: limit,
         }),
 
         // =====================================================
-        // TOTAL RECORDS
+        // TOTAL MATCHING TRANSFERS
         // =====================================================
 
         this.prisma.reservationTransfer.count({
@@ -263,6 +315,7 @@ export class LogisticsListService {
       const count = group._count._all;
 
       const hasOperator = Boolean(group.operatorName?.trim());
+
       const hasUnit = Boolean(group.unitName?.trim());
 
       if (hasOperator && hasUnit) {
@@ -283,7 +336,12 @@ export class LogisticsListService {
 
       const customer = reservation.reservationCustomer;
 
+      // =====================================================
+      // RESOLVE ASSIGNMENT STATUS
+      // =====================================================
+
       const hasOperator = Boolean(transfer.operatorName?.trim());
+
       const hasUnit = Boolean(transfer.unitName?.trim());
 
       const assignmentStatus =
@@ -301,9 +359,11 @@ export class LogisticsListService {
         // =====================================================
 
         serviceDate: this.formatDate(transfer.serviceDate),
+
         serviceTime: this.formatTime(transfer.serviceTime),
 
         pickupDate: this.formatDate(transfer.pickupDate),
+
         pickupTime: this.formatTime(transfer.pickupTime),
 
         // =====================================================
@@ -336,6 +396,7 @@ export class LogisticsListService {
 
               email: customer.email,
               phone: customer.phone,
+
               country: customer.country,
             }
           : null,
@@ -360,7 +421,10 @@ export class LogisticsListService {
       filters: {
         dateFrom,
         dateTo,
+
         search: search || null,
+
+        assigned: query.assigned ?? null,
       },
 
       summary: {
@@ -378,6 +442,74 @@ export class LogisticsListService {
         total,
         totalPages: Math.ceil(total / limit),
       },
+    };
+  }
+
+  // =========================================================
+  // BUILD ASSIGNMENT FILTER
+  // =========================================================
+
+  private buildAssignmentFilter(
+    assigned?: boolean,
+  ): Prisma.ReservationTransferWhereInput | null {
+    // =========================================================
+    // ALL TRANSFERS
+    // =========================================================
+
+    if (assigned === undefined) {
+      return null;
+    }
+
+    // =========================================================
+    // FULLY ASSIGNED TRANSFERS
+    // =========================================================
+
+    if (assigned === true) {
+      return {
+        AND: [
+          {
+            operatorName: {
+              not: null,
+            },
+          },
+          {
+            operatorName: {
+              not: '',
+            },
+          },
+          {
+            unitName: {
+              not: null,
+            },
+          },
+          {
+            unitName: {
+              not: '',
+            },
+          },
+        ],
+      };
+    }
+
+    // =========================================================
+    // NOT FULLY ASSIGNED TRANSFERS
+    // =========================================================
+
+    return {
+      OR: [
+        {
+          operatorName: null,
+        },
+        {
+          operatorName: '',
+        },
+        {
+          unitName: null,
+        },
+        {
+          unitName: '',
+        },
+      ],
     };
   }
 
@@ -428,9 +560,17 @@ export class LogisticsListService {
 
     const today = this.getCancunToday();
 
+    // =========================================================
+    // RESOLVE DATE FROM
+    // =========================================================
+
     const dateFrom = hasDateRange
       ? (query.dateFrom ?? query.dateTo!)
       : (query.date ?? today);
+
+    // =========================================================
+    // RESOLVE DATE TO
+    // =========================================================
 
     const dateTo = hasDateRange
       ? (query.dateTo ?? query.dateFrom!)
@@ -450,6 +590,10 @@ export class LogisticsListService {
     search: string,
   ): Prisma.ReservationTransferWhereInput[] {
     const terms = search.split(/\s+/).filter(Boolean);
+
+    // =========================================================
+    // CUSTOMER FILTERS
+    // =========================================================
 
     const customerFilters: Prisma.ReservationCustomerWhereInput[] = [
       {
@@ -497,6 +641,10 @@ export class LogisticsListService {
     // =========================================================
 
     return [
+      // =====================================================
+      // RESERVATION FOLIO
+      // =====================================================
+
       {
         reservation: {
           folio: {
@@ -504,6 +652,11 @@ export class LogisticsListService {
           },
         },
       },
+
+      // =====================================================
+      // CUSTOMER NAME OR EMAIL
+      // =====================================================
+
       {
         reservation: {
           reservationCustomer: {
