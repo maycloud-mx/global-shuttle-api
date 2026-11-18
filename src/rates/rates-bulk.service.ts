@@ -27,7 +27,6 @@ export class RatesBulkService {
       select: {
         id: true,
         name: true,
-        code: true,
       },
     });
 

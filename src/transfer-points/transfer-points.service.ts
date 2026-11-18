@@ -22,7 +22,7 @@ const userSelect = {
 } as const;
 
 const transferPointInclude = {
-  zone: { select: { id: true, name: true, code: true } },
+  zone: { select: { id: true, name: true } },
   createdBy: { select: userSelect },
   updatedBy: { select: userSelect },
 } as const;

@@ -48,7 +48,7 @@ export class RatesCoverageService {
     const [zones, vehicles, currencies, serviceTypes] = await Promise.all([
       this.prisma.zone.findMany({
         where: { status: true },
-        select: { id: true, name: true, code: true },
+        select: { id: true, name: true },
         orderBy: { id: 'asc' },
       }),
       this.prisma.vehicle.findMany({
@@ -222,7 +222,6 @@ export class RatesCoverageService {
           select: {
             id: true,
             name: true,
-            code: true,
           },
           orderBy: { id: 'asc' },
         }),

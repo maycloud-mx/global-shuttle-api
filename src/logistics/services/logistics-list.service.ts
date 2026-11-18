@@ -149,7 +149,6 @@ export class LogisticsListService {
                   select: {
                     id: true,
                     name: true,
-                    code: true,
                   },
                 },
 
@@ -210,7 +209,6 @@ export class LogisticsListService {
                   select: {
                     id: true,
                     name: true,
-                    code: true,
                   },
                 },
               },
@@ -230,7 +228,6 @@ export class LogisticsListService {
                   select: {
                     id: true,
                     name: true,
-                    code: true,
                   },
                 },
               },

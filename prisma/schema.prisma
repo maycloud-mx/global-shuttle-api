@@ -359,7 +359,6 @@ model Vehicle {
 model Zone {
   id               Int                     @id @default(autoincrement()) @db.UnsignedInt
   name             String                  @unique @db.VarChar(100)
-  code             String                  @unique @db.VarChar(50)
   description      String?                 @db.Text
   isLocal          Boolean                 @default(false) @map("is_local")
   status           Boolean                 @default(true)

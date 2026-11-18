@@ -19,14 +19,12 @@ const rateInclude = {
     select: {
       id: true,
       name: true,
-      code: true,
     },
   },
   destinationZone: {
     select: {
       id: true,
       name: true,
-      code: true,
     },
   },
   vehicle: {
@@ -64,7 +62,6 @@ export class RatesService {
       select: {
         id: true,
         name: true,
-        code: true,
       },
     });
 
@@ -84,7 +81,6 @@ export class RatesService {
           select: {
             id: true,
             name: true,
-            code: true,
           },
           orderBy: {
             name: 'asc',

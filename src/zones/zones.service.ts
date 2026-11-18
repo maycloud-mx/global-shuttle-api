@@ -49,7 +49,6 @@ export class ZonesService {
       return await this.prisma.zone.create({
         data: {
           name: dto.name.trim(),
-          code: dto.code.trim().toUpperCase(),
           description: dto.description?.trim(),
           isLocal: dto.isLocal,
           codeExternal: dto.codeExternal?.trim(),
@@ -80,7 +79,6 @@ export class ZonesService {
         ? {
             OR: [
               { name: { contains: search } },
-              { code: { contains: search } },
               { codeExternal: { contains: search } },
             ],
           }
@@ -133,7 +131,6 @@ export class ZonesService {
           where: { id },
           data: {
             name: dto.name?.trim(),
-            code: dto.code?.trim().toUpperCase(),
             description: dto.description?.trim(),
             isLocal: dto.isLocal,
             codeExternal: dto.codeExternal?.trim(),
@@ -203,7 +200,7 @@ export class ZonesService {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
-      throw new ConflictException('Zone name or code is already in use');
+      throw new ConflictException('Zone name is already in use');
     }
   }
 }

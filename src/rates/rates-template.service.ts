@@ -69,7 +69,6 @@ export class RatesTemplateService {
         select: {
           id: true,
           name: true,
-          code: true,
         },
         orderBy: { name: 'asc' },
       }),
