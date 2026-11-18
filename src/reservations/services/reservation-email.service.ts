@@ -9,7 +9,7 @@ import { EmailService } from '../../email/email.service.js';
 import {
   renderReservationQuoteEmail,
   renderReservationQuoteText,
-} from '../../email/templates/reservation-quote.template.js';
+} from '../../email/templates/reservation/reservation-quote.template.js';
 
 import { PrismaService } from '../../prisma/prisma.service.js';
 

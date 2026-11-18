@@ -9,19 +9,32 @@ datasource db {
 }
 
 model User {
-  id                         Int                  @id @default(autoincrement()) @db.UnsignedInt
-  roleId                     Int                  @map("role_id") @db.UnsignedInt
-  email                      String               @unique @db.VarChar(191)
-  username                   String               @unique @db.VarChar(100)
-  /// Almacena únicamente el hash de la contraseña, nunca el valor en texto plano.
-  passwordHash               String               @map("password_hash") @db.VarChar(255)
-  firstName                  String               @map("first_name") @db.VarChar(100)
-  lastName                   String               @map("last_name") @db.VarChar(100)
-  isActive                   Boolean              @default(true) @map("is_active")
-  lastLoginAt                DateTime?            @map("last_login_at")
-  createdAt                  DateTime             @default(now()) @map("created_at")
-  updatedAt                  DateTime             @updatedAt @map("updated_at")
-  role                       Role                 @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  id       Int    @id @default(autoincrement()) @db.UnsignedInt
+  roleId   Int    @map("role_id") @db.UnsignedInt
+  email    String @unique @db.VarChar(191)
+  username String @unique @db.VarChar(100)
+
+  /// Almacena únicamente el hash de la contraseña.
+  /// Es null mientras el usuario no active su cuenta.
+  passwordHash String? @map("password_hash") @db.VarChar(255)
+
+  firstName String  @map("first_name") @db.VarChar(100)
+  lastName  String  @map("last_name") @db.VarChar(100)
+  isActive  Boolean @default(true) @map("is_active")
+
+  /// Fecha en que el usuario confirmó su correo.
+  emailVerifiedAt DateTime? @map("email_verified_at")
+
+  /// Permite invalidar los JWT emitidos anteriormente.
+  authVersion Int @default(0) @map("auth_version") @db.UnsignedInt
+
+  lastLoginAt DateTime? @map("last_login_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  role   Role        @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  tokens UserToken[]
+
   zonesCreated               Zone[]
   transferPointsCreated      TransferPoint[]      @relation("TransferPointCreatedBy")
   transferPointsUpdated      TransferPoint[]      @relation("TransferPointUpdatedBy")
@@ -490,14 +503,14 @@ model ReservationTransfer {
   createdAt                  DateTime                       @default(now()) @map("created_at")
   updatedAt                  DateTime?                      @updatedAt @map("updated_at")
 
-  reservation                Reservation                    @relation(fields: [reservationId], references: [id], onDelete: Restrict)
-  serviceType                ServiceType                    @relation(fields: [serviceTypeId], references: [id], onDelete: Restrict)
-  vehicle                    Vehicle                        @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
-  rate                       Rate                           @relation(fields: [rateId], references: [id], onDelete: Restrict)
-  originTransferPoint        TransferPoint                  @relation("ReservationTransferOrigin", fields: [originTransferPointId], references: [id], onDelete: Restrict)
-  destinationTransferPoint   TransferPoint                  @relation("ReservationTransferDestination", fields: [destinationTransferPointId], references: [id], onDelete: Restrict)
-  transferStatus             TransferStatus                 @relation(fields: [transferStatusId], references: [id], onDelete: Restrict)
-  airline                    Airline?                       @relation(fields: [airlineId], references: [id], onDelete: Restrict)
+  reservation              Reservation    @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+  serviceType              ServiceType    @relation(fields: [serviceTypeId], references: [id], onDelete: Restrict)
+  vehicle                  Vehicle        @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  rate                     Rate           @relation(fields: [rateId], references: [id], onDelete: Restrict)
+  originTransferPoint      TransferPoint  @relation("ReservationTransferOrigin", fields: [originTransferPointId], references: [id], onDelete: Restrict)
+  destinationTransferPoint TransferPoint  @relation("ReservationTransferDestination", fields: [destinationTransferPointId], references: [id], onDelete: Restrict)
+  transferStatus           TransferStatus @relation(fields: [transferStatusId], references: [id], onDelete: Restrict)
+  airline                  Airline?       @relation(fields: [airlineId], references: [id], onDelete: Restrict)
 
   @@index([reservationId])
   @@index([serviceTypeId])
@@ -518,4 +531,32 @@ model ReservationFolioCounter {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("reservation_folio_counters")
+}
+
+enum UserTokenType {
+  ACCOUNT_ACTIVATION
+  PASSWORD_RESET
+}
+
+model UserToken {
+  id     Int           @id @default(autoincrement()) @db.UnsignedInt
+  userId Int           @map("user_id") @db.UnsignedInt
+  type   UserTokenType
+
+  /// Hash SHA-256 del token original.
+  tokenHash String @unique @map("token_hash") @db.Char(64)
+
+  /// Fecha y hora de expiración.
+  expiresAt DateTime @map("expires_at")
+
+  /// Null mientras el token no se haya utilizado.
+  usedAt DateTime? @map("used_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+  @@index([expiresAt])
+  @@map("user_tokens")
 }

@@ -43,4 +43,5 @@ export interface AuthenticatedUser {
 export interface JwtPayload {
   sub: number;
   username: string;
+  authVersion: number;
 }

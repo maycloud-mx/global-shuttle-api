@@ -4,10 +4,13 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+
 import { JwtService } from '@nestjs/jwt';
 import type { Request } from 'express';
+
 import type { AuthenticatedUser, JwtPayload } from './auth.types.js';
-import { AuthService } from './auth.service.js';
+
+import { AuthService } from './services/auth.service.js';
 
 export interface AuthenticatedRequest extends Request {
   user: AuthenticatedUser;
@@ -22,17 +25,35 @@ export class JwtAuthGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+
     const [type, token] = request.headers.authorization?.split(' ') ?? [];
+
     if (type !== 'Bearer' || !token) {
       throw new UnauthorizedException('Bearer token is required');
     }
 
     try {
       const payload = await this.jwtService.verifyAsync<JwtPayload>(token);
-      request.user = await this.authService.findAuthenticatedUser(payload.sub);
+
+      if (
+        !Number.isSafeInteger(payload.sub) ||
+        !Number.isSafeInteger(payload.authVersion) ||
+        payload.authVersion < 0
+      ) {
+        throw new UnauthorizedException('Invalid authentication token');
+      }
+
+      request.user = await this.authService.findAuthenticatedUser(
+        payload.sub,
+        payload.authVersion,
+      );
+
       return true;
     } catch (error) {
-      if (error instanceof UnauthorizedException) throw error;
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+
       throw new UnauthorizedException('Invalid or expired token');
     }
   }

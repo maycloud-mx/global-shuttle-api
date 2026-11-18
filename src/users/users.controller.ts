@@ -11,14 +11,17 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { RequirePermissions } from '../auth/permissions.decorator.js';
 import { PermissionsGuard } from '../auth/permissions.guard.js';
 import { ApiMessage } from '../http/api-message.decorator.js';
+
 import { ChangeUserStatusDto } from './dto/change-user-status.dto.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
 import { ListUsersDto } from './dto/list-users.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
+
 import { USER_PERMISSIONS } from './user-permissions.js';
 import { UsersService } from './users.service.js';
 
@@ -64,5 +67,13 @@ export class UsersController {
     @Body() dto: ChangeUserStatusDto,
   ) {
     return this.usersService.changeStatus(id, dto);
+  }
+
+  @Post(':id/resend-invitation')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(USER_PERMISSIONS.UPDATE)
+  @ApiMessage('Activation invitation sent successfully')
+  resendInvitation(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.resendInvitation(id);
   }
 }
