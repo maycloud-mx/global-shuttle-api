@@ -12,6 +12,9 @@ import {
 
 import { ApiMessage } from '../http/api-message.decorator.js';
 
+import { RateLimit } from '../security/rate-limit/rate-limit.decorator.js';
+import { RATE_LIMIT_POLICIES } from '../security/rate-limit/rate-limit.config.js';
+
 import { AuthService } from './services/auth.service.js';
 import { CurrentUser } from './current-user.decorator.js';
 import { JwtAuthGuard } from './jwt-auth.guard.js';
@@ -35,6 +38,7 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @RateLimit(RATE_LIMIT_POLICIES.auth)
   @ApiMessage('Login successful')
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
@@ -56,12 +60,18 @@ export class AuthController {
   // =========================================================
 
   @Get('activation/validate')
+  @RateLimit(RATE_LIMIT_POLICIES.tokenValidation)
   @ApiMessage('Activation token validated')
   validateActivation(@Query() query: ValidateAuthTokenDto) {
     return this.authService.validateActivationToken(query.token);
   }
 
+  // =========================================================
+  // VALIDATE PASSWORD RESET TOKEN
+  // =========================================================
+
   @Get('password/reset/validate')
+  @RateLimit(RATE_LIMIT_POLICIES.tokenValidation)
   @ApiMessage('Password reset token validated')
   validatePasswordReset(@Query() query: ValidateAuthTokenDto) {
     return this.authService.validatePasswordResetToken(query.token);
@@ -73,6 +83,7 @@ export class AuthController {
 
   @Post('activation/complete')
   @HttpCode(HttpStatus.OK)
+  @RateLimit(RATE_LIMIT_POLICIES.accountActivation)
   @ApiMessage('Account activated successfully')
   completeActivation(@Body() dto: CompleteAccountActivationDto) {
     return this.authService.completeAccountActivation(dto);
@@ -84,6 +95,7 @@ export class AuthController {
 
   @Post('password/forgot')
   @HttpCode(HttpStatus.OK)
+  @RateLimit(RATE_LIMIT_POLICIES.passwordForgot)
   @ApiMessage('Password recovery request processed')
   forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.authService.forgotPassword(dto);
@@ -95,6 +107,7 @@ export class AuthController {
 
   @Post('password/reset')
   @HttpCode(HttpStatus.OK)
+  @RateLimit(RATE_LIMIT_POLICIES.passwordReset)
   @ApiMessage('Password reset successfully')
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto);
@@ -107,6 +120,7 @@ export class AuthController {
   @Patch('password/change')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
+  @RateLimit(RATE_LIMIT_POLICIES.passwordChange)
   @ApiMessage('Password changed successfully')
   changePassword(
     @CurrentUser() user: AuthenticatedUser,

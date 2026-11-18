@@ -1,14 +1,17 @@
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
+  HttpStatus,
   Injectable,
+  Logger,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 
 import { Prisma, UserTokenType } from '../generated/prisma/index.js';
-import { PrismaService } from '../prisma/prisma.service.js';
 
+import { PrismaService } from '../prisma/prisma.service.js';
 import { AuthTokenService } from '../auth/services/auth-token.service.js';
 import { EmailService } from '../email/email.service.js';
 
@@ -22,6 +25,21 @@ import type { CreateUserDto } from './dto/create-user.dto.js';
 import type { ListUsersDto } from './dto/list-users.dto.js';
 import type { UpdateUserDto } from './dto/update-user.dto.js';
 
+// =========================================================
+// CONFIGURATION
+// =========================================================
+
+const INVITATION_COOLDOWN_SECONDS = 60;
+const MAX_INVITATIONS_PER_DAY = 5;
+const INVITATION_WINDOW_HOURS = 24;
+
+type InvitationStatus =
+  'ACTIVE' | 'INACTIVE' | 'PENDING' | 'EXPIRED' | 'NOT_SENT';
+
+// =========================================================
+// USER SELECTION
+// =========================================================
+
 const userSelection = {
   id: true,
   email: true,
@@ -33,6 +51,7 @@ const userSelection = {
   lastLoginAt: true,
   createdAt: true,
   updatedAt: true,
+
   role: {
     select: {
       id: true,
@@ -41,10 +60,33 @@ const userSelection = {
       isActive: true,
     },
   },
-} as const;
+
+  tokens: {
+    where: {
+      type: UserTokenType.ACCOUNT_ACTIVATION,
+    },
+    select: {
+      createdAt: true,
+      expiresAt: true,
+      usedAt: true,
+    },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: 1,
+  },
+} satisfies Prisma.UserSelect;
+
+type SelectedUser = Prisma.UserGetPayload<{
+  select: typeof userSelection;
+}>;
+
+// =========================================================
+// SERVICE
+// =========================================================
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly authTokenService: AuthTokenService,
@@ -58,7 +100,7 @@ export class UsersService {
   async create(dto: CreateUserDto) {
     await this.ensureActiveRole(dto.roleId);
 
-    let user;
+    let user: SelectedUser;
 
     try {
       user = await this.prisma.user.create({
@@ -81,11 +123,23 @@ export class UsersService {
       throw error;
     }
 
-    // El usuario ya está registrado.
-    // Si falla el correo, podrá reenviarse la invitación.
-    await this.sendActivationInvitation(user);
+    // El usuario ya fue registrado.
+    // Un fallo SMTP no debe eliminarlo.
+    let invitationSent = false;
 
-    return user;
+    try {
+      await this.sendActivationInvitation(user);
+      invitationSent = true;
+    } catch (error) {
+      this.logInvitationError(user.id, error, 'Initial activation invitation');
+    }
+
+    const updatedUser = await this.findUserOrThrow(user.id);
+
+    return {
+      ...this.toUserResponse(updatedUser),
+      invitationSent,
+    };
   }
 
   // =========================================================
@@ -112,7 +166,7 @@ export class UsersService {
 
     const skip = (query.page - 1) * query.limit;
 
-    const [items, total] = await this.prisma.$transaction([
+    const [users, total] = await this.prisma.$transaction([
       this.prisma.user.findMany({
         where,
         select: userSelection,
@@ -120,11 +174,14 @@ export class UsersService {
         skip,
         take: query.limit,
       }),
-      this.prisma.user.count({ where }),
+
+      this.prisma.user.count({
+        where,
+      }),
     ]);
 
     return {
-      items,
+      items: users.map((user) => this.toUserResponse(user)),
       pagination: {
         page: query.page,
         limit: query.limit,
@@ -139,16 +196,9 @@ export class UsersService {
   // =========================================================
 
   async findOne(id: number) {
-    const user = await this.prisma.user.findUnique({
-      where: { id },
-      select: userSelection,
-    });
+    const user = await this.findUserOrThrow(id);
 
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    return user;
+    return this.toUserResponse(user);
   }
 
   // =========================================================
@@ -174,9 +224,8 @@ export class UsersService {
 
     const newEmail = dto.email?.trim().toLowerCase();
 
-    // El cambio de correo requiere su propio flujo
-    // de verificación. No se modifica silenciosamente
-    // una dirección ya registrada.
+    // El cambio de correo requiere
+    // un flujo de verificación separado.
     if (newEmail !== undefined && newEmail !== existing.email) {
       throw new BadRequestException(
         'Email changes require a separate verification process',
@@ -184,7 +233,7 @@ export class UsersService {
     }
 
     try {
-      return await this.prisma.user.update({
+      const user = await this.prisma.user.update({
         where: { id },
         data: {
           roleId: dto.roleId,
@@ -194,6 +243,8 @@ export class UsersService {
         },
         select: userSelection,
       });
+
+      return this.toUserResponse(user);
     } catch (error) {
       this.handleUniqueConstraint(error);
       throw error;
@@ -205,15 +256,46 @@ export class UsersService {
   // =========================================================
 
   async changeStatus(id: number, dto: ChangeUserStatusDto) {
-    await this.ensureUserExists(id);
+    await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.user.findUnique({
+        where: { id },
+        select: { id: true },
+      });
 
-    return this.prisma.user.update({
-      where: { id },
-      data: {
-        isActive: dto.isActive,
-      },
-      select: userSelection,
+      if (!existing) {
+        throw new NotFoundException('User not found');
+      }
+
+      await tx.user.update({
+        where: { id },
+        data: {
+          isActive: dto.isActive,
+        },
+      });
+
+      // Al desactivar la cuenta, invalidamos
+      // invitaciones y recuperaciones pendientes.
+      if (!dto.isActive) {
+        await this.authTokenService.invalidate(
+          id,
+          UserTokenType.ACCOUNT_ACTIVATION,
+          tx,
+        );
+
+        await this.authTokenService.invalidate(
+          id,
+          UserTokenType.PASSWORD_RESET,
+          tx,
+        );
+      }
     });
+
+    // Consultar después de confirmar
+    // la transacción evita devolver tokens
+    // y estados anteriores a la invalidación.
+    const updatedUser = await this.findUserOrThrow(id);
+
+    return this.toUserResponse(updatedUser);
   }
 
   // =========================================================
@@ -221,18 +303,50 @@ export class UsersService {
   // =========================================================
 
   async resendInvitation(id: number) {
-    const user = await this.prisma.user.findUnique({
-      where: { id },
-      select: userSelection,
-    });
+    const user = await this.findUserOrThrow(id);
 
-    if (!user) {
-      throw new NotFoundException('User not found');
+    this.ensureCanReceiveInvitation(user);
+
+    // Controlar frecuencia antes
+    // de generar un token nuevo.
+    await this.ensureInvitationLimit(id);
+
+    let invitationSent = false;
+
+    try {
+      await this.sendActivationInvitation(user);
+      invitationSent = true;
+    } catch (error) {
+      this.logInvitationError(user.id, error, 'Activation invitation resend');
     }
 
+    const updatedUser = await this.findUserOrThrow(id);
+
+    return {
+      userId: updatedUser.id,
+      email: updatedUser.email,
+      invitationSent,
+      invitationStatus: this.getInvitationStatus(updatedUser),
+      message: invitationSent
+        ? 'Activation invitation sent successfully'
+        : 'Activation invitation could not be sent',
+    };
+  }
+
+  // =========================================================
+  // INVITATION VALIDATIONS
+  // =========================================================
+
+  private ensureCanReceiveInvitation(user: SelectedUser): void {
     if (!user.isActive) {
       throw new BadRequestException(
         'Cannot send invitations to inactive users',
+      );
+    }
+
+    if (!user.role.isActive) {
+      throw new BadRequestException(
+        'Cannot send invitations to users with an inactive role',
       );
     }
 
@@ -240,13 +354,63 @@ export class UsersService {
       throw new BadRequestException('User account is already verified');
     }
 
-    await this.sendActivationInvitation(user);
+    // AuthTokenService.generate()
+    // realiza también la validación definitiva
+    // de passwordHash y estado de la cuenta.
+  }
 
-    return {
-      message: 'Activation invitation sent successfully',
-      userId: user.id,
-      email: user.email,
-    };
+  // =========================================================
+  // INVITATION LIMITS
+  // =========================================================
+
+  private async ensureInvitationLimit(userId: number): Promise<void> {
+    const now = new Date();
+
+    const windowStart = new Date(
+      now.getTime() - INVITATION_WINDOW_HOURS * 60 * 60 * 1000,
+    );
+
+    const [lastInvitation, invitationCount] = await this.prisma.$transaction([
+      this.prisma.userToken.findFirst({
+        where: {
+          userId,
+          type: UserTokenType.ACCOUNT_ACTIVATION,
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: {
+          createdAt: true,
+        },
+      }),
+
+      this.prisma.userToken.count({
+        where: {
+          userId,
+          type: UserTokenType.ACCOUNT_ACTIVATION,
+          createdAt: {
+            gte: windowStart,
+          },
+        },
+      }),
+    ]);
+
+    if (lastInvitation) {
+      const secondsSinceLast =
+        (now.getTime() - lastInvitation.createdAt.getTime()) / 1000;
+
+      if (secondsSinceLast < INVITATION_COOLDOWN_SECONDS) {
+        throw new HttpException(
+          'Please wait before requesting another invitation',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+    }
+
+    if (invitationCount >= MAX_INVITATIONS_PER_DAY) {
+      throw new HttpException(
+        'Daily invitation limit reached',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
   }
 
   // =========================================================
@@ -259,6 +423,7 @@ export class UsersService {
     username: string;
     firstName: string;
   }): Promise<void> {
+    // Validar URL antes de crear un token.
     const adminUrl = this.getAdminFrontendUrl();
 
     const { token, expiresAt } = await this.authTokenService.generate(
@@ -283,6 +448,57 @@ export class UsersService {
       renderAccountActivationEmail(templateData),
       renderAccountActivationText(templateData),
     );
+  }
+
+  // =========================================================
+  // INVITATION STATUS
+  // =========================================================
+
+  private getInvitationStatus(user: SelectedUser): InvitationStatus {
+    if (!user.isActive || !user.role.isActive) {
+      return 'INACTIVE';
+    }
+
+    if (user.emailVerifiedAt !== null) {
+      return 'ACTIVE';
+    }
+
+    const latestToken = user.tokens[0];
+
+    if (!latestToken) {
+      return 'NOT_SENT';
+    }
+
+    if (latestToken.usedAt !== null) {
+      return 'NOT_SENT';
+    }
+
+    if (latestToken.expiresAt.getTime() <= Date.now()) {
+      return 'EXPIRED';
+    }
+
+    return 'PENDING';
+  }
+
+  // =========================================================
+  // USER RESPONSE
+  // =========================================================
+
+  private toUserResponse(user: SelectedUser) {
+    return {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      isActive: user.isActive,
+      emailVerifiedAt: user.emailVerifiedAt,
+      lastLoginAt: user.lastLoginAt,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      role: user.role,
+      invitationStatus: this.getInvitationStatus(user),
+    };
   }
 
   // =========================================================
@@ -327,19 +543,25 @@ export class UsersService {
   }
 
   // =========================================================
-  // VALIDATIONS
+  // INTERNAL USER QUERY
   // =========================================================
 
-  private async ensureUserExists(id: number): Promise<void> {
+  private async findUserOrThrow(id: number): Promise<SelectedUser> {
     const user = await this.prisma.user.findUnique({
       where: { id },
-      select: { id: true },
+      select: userSelection,
     });
 
     if (!user) {
       throw new NotFoundException('User not found');
     }
+
+    return user;
   }
+
+  // =========================================================
+  // ROLE VALIDATION
+  // =========================================================
 
   private async ensureActiveRole(roleId: number): Promise<void> {
     const role = await this.prisma.role.findFirst({
@@ -355,6 +577,10 @@ export class UsersService {
     }
   }
 
+  // =========================================================
+  // UNIQUE CONSTRAINT
+  // =========================================================
+
   private handleUniqueConstraint(error: unknown): void {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -362,5 +588,20 @@ export class UsersService {
     ) {
       throw new ConflictException('Email or username is already in use');
     }
+  }
+
+  // =========================================================
+  // INVITATION ERROR LOG
+  // =========================================================
+
+  private logInvitationError(
+    userId: number,
+    error: unknown,
+    operation: string,
+  ): void {
+    this.logger.error(
+      `${operation} failed for user ID ${userId}`,
+      error instanceof Error ? error.stack : undefined,
+    );
   }
 }

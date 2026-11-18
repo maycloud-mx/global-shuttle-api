@@ -5,6 +5,7 @@ type NodeEnvironment = (typeof supportedEnvironments)[number];
 export interface EnvironmentVariables {
   NODE_ENV: NodeEnvironment;
   PORT: number;
+  TRUST_PROXY_HOPS: number;
   CORS_ORIGINS: string[];
   DB_HOST: string;
   DB_PORT: number;
@@ -77,6 +78,11 @@ export function validateEnvironment(
     throw new Error('PORT must be an integer between 1 and 65535');
   }
 
+  const trustProxyHops = Number(environment.TRUST_PROXY_HOPS ?? 0);
+  if (!Number.isInteger(trustProxyHops) || trustProxyHops < 0) {
+    throw new Error('TRUST_PROXY_HOPS must be a non-negative integer');
+  }
+
   const corsOriginsValue = environment.CORS_ORIGINS ?? '*';
   if (typeof corsOriginsValue !== 'string') {
     throw new Error('CORS_ORIGINS must be a string');
@@ -124,6 +130,7 @@ export function validateEnvironment(
   return {
     NODE_ENV: nodeEnvironment as NodeEnvironment,
     PORT: port,
+    TRUST_PROXY_HOPS: trustProxyHops,
     CORS_ORIGINS: corsOrigins,
     DB_HOST: requireString(environment, 'DB_HOST'),
     DB_PORT: databasePort,

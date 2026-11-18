@@ -20,10 +20,12 @@ import { EmailModule } from './email/email.module.js';
 import { PublicModule } from './public/public.module.js';
 import { ReservationStatusesModule } from './reservation-statuses/reservation-statuses.module.js';
 import { LogisticsModule } from './logistics/logistics.module.js';
+import { RateLimitModule } from './security/rate-limit/rate-limit.module.js';
 
 @Module({
   imports: [
     PrismaModule,
+    RateLimitModule,
     MediaModule,
     HealthModule,
     AuthModule,

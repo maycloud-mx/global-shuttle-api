@@ -1,5 +1,6 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import { AppModule } from './app.module.js';
 import { loadEnvironment } from './config/environment.js';
@@ -8,8 +9,16 @@ import { ApiResponseInterceptor } from './http/api-response.interceptor.js';
 
 async function bootstrap() {
   const config = loadEnvironment();
-  const app = await NestFactory.create(AppModule);
-  const { PORT: port, CORS_ORIGINS: corsOrigins } = config;
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const {
+    PORT: port,
+    CORS_ORIGINS: corsOrigins,
+    TRUST_PROXY_HOPS: trustProxyHops,
+  } = config;
+
+  if (trustProxyHops > 0) {
+    app.set('trust proxy', trustProxyHops);
+  }
 
   app.use(helmet());
   app.enableCors({
