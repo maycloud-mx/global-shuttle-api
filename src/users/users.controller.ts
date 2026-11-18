@@ -20,8 +20,8 @@ import { PermissionsGuard } from '../auth/permissions.guard.js';
 
 import { ApiMessage } from '../http/api-message.decorator.js';
 
-import { RateLimit } from '../platform/rate-limit/rate-limit.decorator.js';
-import { RATE_LIMIT_POLICIES } from '../platform/rate-limit/rate-limit.config.js';
+import { RateLimit } from '../auth/rate-limit.decorator.js';
+import { RATE_LIMIT_POLICIES } from '../auth/rate-limit.config.js';
 
 import { ChangeUserStatusDto } from './dto/change-user-status.dto.js';
 import { CreateUserDto } from './dto/create-user.dto.js';

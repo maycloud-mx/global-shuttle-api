@@ -18,7 +18,7 @@ import { EmailService } from '../email/email.service.js';
 import {
   renderAccountActivationEmail,
   renderAccountActivationText,
-} from '../email/views/auth/account-activation.template.js';
+} from '../email/account-activation.template.js';
 
 import type { ChangeUserStatusDto } from './dto/change-user-status.dto.js';
 import type { CreateUserDto } from './dto/create-user.dto.js';

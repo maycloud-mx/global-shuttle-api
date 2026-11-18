@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 
 import { loadEnvironment } from '../config/environment.js';
-import { TurnstileModule } from '../platform/turnstile/turnstile.module.js';
+import { TurnstileModule } from './turnstile.module.js';
 
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './services/auth.service.js';
