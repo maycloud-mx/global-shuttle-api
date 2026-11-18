@@ -12,8 +12,8 @@ import {
 
 import { ApiMessage } from '../http/api-message.decorator.js';
 
-import { RateLimit } from '../security/rate-limit/rate-limit.decorator.js';
-import { RATE_LIMIT_POLICIES } from '../security/rate-limit/rate-limit.config.js';
+import { RateLimit } from '../platform/rate-limit/rate-limit.decorator.js';
+import { RATE_LIMIT_POLICIES } from '../platform/rate-limit/rate-limit.config.js';
 
 import { AuthService } from './services/auth.service.js';
 import { CurrentUser } from './current-user.decorator.js';

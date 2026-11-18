@@ -14,19 +14,19 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { loadEnvironment } from '../../config/environment.js';
 
 import { EmailService } from '../../email/email.service.js';
-import { TurnstileService } from '../../security/turnstile/turnstile.service.js';
+import { TurnstileService } from '../../platform/turnstile/turnstile.service.js';
 
 import { AuthTokenService } from './auth-token.service.js';
 
 import {
   renderPasswordResetEmail,
   renderPasswordResetText,
-} from '../../email/templates/auth/password-reset.template.js';
+} from '../../email/views/auth/password-reset.template.js';
 
 import {
   renderPasswordChangedEmail,
   renderPasswordChangedText,
-} from '../../email/templates/auth/password-changed.template.js';
+} from '../../email/views/auth/password-changed.template.js';
 
 import type { LoginDto } from '../dto/login.dto.js';
 import type { ForgotPasswordDto } from '../dto/forgot-password.dto.js';

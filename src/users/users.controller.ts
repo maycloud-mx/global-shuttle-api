@@ -20,8 +20,8 @@ import { PermissionsGuard } from '../auth/permissions.guard.js';
 
 import { ApiMessage } from '../http/api-message.decorator.js';
 
-import { RateLimit } from '../security/rate-limit/rate-limit.decorator.js';
-import { RATE_LIMIT_POLICIES } from '../security/rate-limit/rate-limit.config.js';
+import { RateLimit } from '../platform/rate-limit/rate-limit.decorator.js';
+import { RATE_LIMIT_POLICIES } from '../platform/rate-limit/rate-limit.config.js';
 
 import { ChangeUserStatusDto } from './dto/change-user-status.dto.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
@@ -82,10 +82,8 @@ export class UsersController {
       detectedIp: request.ip,
       connectionIp: request.socket.remoteAddress,
       forwardedIps: request.ips,
-      xForwardedFor:
-        request.headers['x-forwarded-for'] ?? null,
-      xRealIp:
-        request.headers['x-real-ip'] ?? null,
+      xForwardedFor: request.headers['x-forwarded-for'] ?? null,
+      xRealIp: request.headers['x-real-ip'] ?? null,
     };
   }
 
