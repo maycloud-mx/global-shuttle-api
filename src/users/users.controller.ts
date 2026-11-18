@@ -12,6 +12,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
+import { Req } from '@nestjs/common';
+import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { RequirePermissions } from '../auth/permissions.decorator.js';
 import { PermissionsGuard } from '../auth/permissions.guard.js';
@@ -65,6 +67,26 @@ export class UsersController {
   @ApiMessage('User retrieved successfully')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.usersService.findOne(id);
+  }
+
+  // =========================================================
+  // TEMPORARY PROXY DIAGNOSTICS
+  // REMOVE AFTER TESTING
+  // =========================================================
+
+  @Get('proxy-diagnostics')
+  @RequirePermissions(USER_PERMISSIONS.VIEW)
+  @ApiMessage('Proxy diagnostics retrieved successfully')
+  proxyDiagnostics(@Req() request: Request) {
+    return {
+      detectedIp: request.ip,
+      connectionIp: request.socket.remoteAddress,
+      forwardedIps: request.ips,
+      xForwardedFor:
+        request.headers['x-forwarded-for'] ?? null,
+      xRealIp:
+        request.headers['x-real-ip'] ?? null,
+    };
   }
 
   // =========================================================
