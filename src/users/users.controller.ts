@@ -58,18 +58,7 @@ export class UsersController {
     return this.usersService.findAll(query);
   }
 
-  // =========================================================
-  // DETAIL
-  // =========================================================
-
-  @Get(':id')
-  @RequirePermissions(USER_PERMISSIONS.VIEW)
-  @ApiMessage('User retrieved successfully')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.usersService.findOne(id);
-  }
-
-  // =========================================================
+   // =========================================================
   // TEMPORARY PROXY DIAGNOSTICS
   // REMOVE AFTER TESTING
   // =========================================================
@@ -86,6 +75,19 @@ export class UsersController {
       xRealIp: request.headers['x-real-ip'] ?? null,
     };
   }
+
+  // =========================================================
+  // DETAIL
+  // =========================================================
+
+  @Get(':id')
+  @RequirePermissions(USER_PERMISSIONS.VIEW)
+  @ApiMessage('User retrieved successfully')
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.findOne(id);
+  }
+
+ 
 
   // =========================================================
   // UPDATE
