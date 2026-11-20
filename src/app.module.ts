@@ -21,6 +21,7 @@ import { PublicModule } from './public/public.module.js';
 import { ReservationStatusesModule } from './reservation-statuses/reservation-statuses.module.js';
 import { LogisticsModule } from './logistics/logistics.module.js';
 import { RateLimitModule } from './auth/rate-limit.module.js';
+import { DashboardModule } from './dashboard/dashboard.module.js';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { RateLimitModule } from './auth/rate-limit.module.js';
     PublicModule,
     ReservationStatusesModule,
     LogisticsModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],

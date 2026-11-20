@@ -58,7 +58,7 @@ export class UsersController {
     return this.usersService.findAll(query);
   }
 
-   // =========================================================
+  // =========================================================
   // TEMPORARY PROXY DIAGNOSTICS
   // REMOVE AFTER TESTING
   // =========================================================
@@ -86,8 +86,6 @@ export class UsersController {
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.usersService.findOne(id);
   }
-
- 
 
   // =========================================================
   // UPDATE
