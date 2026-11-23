@@ -11,7 +11,9 @@ import type { Request, Response } from 'express';
 interface ExceptionBody {
   message?: string | string[];
   error?: string;
+  errors?: unknown;
   details?: unknown;
+  expectedColumns?: unknown;
 }
 
 @Catch()
@@ -53,8 +55,10 @@ export class ApiExceptionFilter implements ExceptionFilter {
       success: false,
       statusCode,
       message,
-      errors: messages.length > 1 ? messages : undefined,
+      errors:
+        details.errors ?? (messages.length > 1 ? messages : undefined),
       details: details.details,
+      expectedColumns: details.expectedColumns,
       timestamp: new Date().toISOString(),
       path: request.originalUrl,
     });
