@@ -47,6 +47,53 @@ export class RatesImportService {
     ].join(':');
   }
 
+  private createMirroredRows(rows: ImportRateRow[]): ImportRateRow[] {
+    const mirroredRows: ImportRateRow[] = [];
+    const rowsByKey = new Map<string, ImportRateRow>();
+    const errors: string[] = [];
+
+    const addRow = (row: ImportRateRow, sourceRowNumber: number) => {
+      const key = this.createKey(row);
+      const existing = rowsByKey.get(key);
+
+      if (!existing) {
+        rowsByKey.set(key, row);
+        mirroredRows.push(row);
+        return;
+      }
+
+      if (existing.price !== row.price) {
+        errors.push(
+          `Row ${sourceRowNumber}: the mirrored rate conflicts with row ${existing.rowNumber}`,
+        );
+      }
+    };
+
+    for (const row of rows) {
+      addRow(row, row.rowNumber);
+
+      if (row.originZoneId !== row.destinationZoneId) {
+        addRow(
+          {
+            ...row,
+            originZoneId: row.destinationZoneId,
+            destinationZoneId: row.originZoneId,
+          },
+          row.rowNumber,
+        );
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new BadRequestException({
+        message: 'Mirrored rate validation failed',
+        errors,
+      });
+    }
+
+    return mirroredRows;
+  }
+
   private parsePositiveInteger(value: ExcelJS.CellValue): number | null {
     if (typeof value !== 'string' && typeof value !== 'number') {
       return null;
@@ -350,7 +397,8 @@ export class RatesImportService {
   }
 
   private async inspect(file: Express.Multer.File) {
-    const rows = await this.parseFile(file);
+    const importedRows = await this.parseFile(file);
+    const rows = this.createMirroredRows(importedRows);
 
     await this.validateReferences(rows);
 
