@@ -559,3 +559,24 @@ model UserToken {
   @@index([expiresAt])
   @@map("user_tokens")
 }
+
+model ContactMessage {
+  id      Int     @id @default(autoincrement()) @db.UnsignedInt
+  name    String  @db.VarChar(150)
+  email   String  @db.VarChar(191)
+  phone   String? @db.VarChar(30)
+  comment String  @db.Text
+  isRead  Boolean @default(false) @map("is_read")
+
+  customerEmailSentAt DateTime? @map("customer_email_sent_at")
+  adminEmailSentAt    DateTime? @map("admin_email_sent_at")
+  readAt              DateTime? @map("read_at")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime? @updatedAt @map("updated_at")
+
+  @@index([email])
+  @@index([isRead, createdAt])
+  @@index([createdAt])
+  @@map("contact_messages")
+}
