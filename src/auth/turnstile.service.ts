@@ -15,6 +15,7 @@ interface TurnstileVerifyResponse {
 
 export interface VerifyTurnstileOptions {
   expectedAction: string;
+  expectedHostname?: string;
   remoteIp?: string;
 }
 
@@ -97,7 +98,7 @@ export class TurnstileService {
     }
 
     if (
-      result.hostname !== this.expectedHostname ||
+      result.hostname !== (options.expectedHostname ?? this.expectedHostname) ||
       result.action !== options.expectedAction
     ) {
       this.logger.warn('Turnstile hostname or action mismatch');

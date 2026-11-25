@@ -22,6 +22,7 @@ import { ReservationStatusesModule } from './reservation-statuses/reservation-st
 import { LogisticsModule } from './logistics/logistics.module.js';
 import { RateLimitModule } from './auth/rate-limit.module.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
+import { ContactMessagesModule } from './contact-messages/contact-messages.module.js';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { DashboardModule } from './dashboard/dashboard.module.js';
     ReservationStatusesModule,
     LogisticsModule,
     DashboardModule,
+    ContactMessagesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

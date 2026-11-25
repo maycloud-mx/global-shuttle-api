@@ -130,6 +130,15 @@ ON DUPLICATE KEY UPDATE
   is_active = TRUE,
   updated_at = CURRENT_TIMESTAMP;
 
+INSERT INTO menus
+  (module_id, parent_id, name, code, route, icon, sort_order, is_visible, is_active, created_at, updated_at)
+SELECT id, NULL, 'Contact messages', 'contact-messages', '/contact-messages', 'mail', 3, TRUE, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+FROM modules
+WHERE code = 'administration'
+ON DUPLICATE KEY UPDATE
+  is_active = TRUE,
+  updated_at = CURRENT_TIMESTAMP;
+
 INSERT INTO actions
   (name, code, description, is_active, created_at, updated_at)
 VALUES

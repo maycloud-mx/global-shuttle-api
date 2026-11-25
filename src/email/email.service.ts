@@ -45,6 +45,7 @@ export class EmailService {
     subject: string,
     html: string,
     text?: string,
+    replyTo?: string,
   ): Promise<void> {
     const mailOptions: SendMailOptions = {
       from: {
@@ -55,6 +56,7 @@ export class EmailService {
       subject,
       html,
       text,
+      replyTo: replyTo ? { address: replyTo, name: '' } : undefined,
     };
 
     try {

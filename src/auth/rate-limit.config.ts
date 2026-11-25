@@ -22,6 +22,11 @@ export const RATE_LIMIT_POLICIES = {
     ttl: minutes(1),
   },
 
+  contactSubmission: {
+    limit: 5,
+    ttl: minutes(15),
+  },
+
   // =========================================================
   // AUTHENTICATION
   // =========================================================
