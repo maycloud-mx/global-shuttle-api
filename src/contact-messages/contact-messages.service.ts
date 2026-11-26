@@ -7,10 +7,20 @@ import {
 import { TurnstileService } from '../auth/turnstile.service.js';
 import { loadEnvironment } from '../config/environment.js';
 import {
+  CONTACT_CONFIRMATION_EN_SUBJECT,
+  renderContactConfirmationEmailEn,
+  renderContactConfirmationTextEn,
+} from '../email/contact-confirmation.en.template.js';
+import {
   CONTACT_CONFIRMATION_SUBJECT,
   renderContactConfirmationEmail,
   renderContactConfirmationText,
 } from '../email/contact-confirmation.template.js';
+import {
+  CONTACT_NOTIFICATION_EN_SUBJECT,
+  renderContactNotificationEmailEn,
+  renderContactNotificationTextEn,
+} from '../email/contact-notification.en.template.js';
 import {
   CONTACT_NOTIFICATION_SUBJECT,
   renderContactNotificationEmail,
@@ -51,21 +61,35 @@ export class ContactMessagesService {
       },
     });
 
+    const isEnglish = dto.language === 'en';
+
     await Promise.all([
       this.sendAndRecord(message.id, 'customerEmailSentAt', () =>
         this.emailService.sendEmail(
           message.email,
-          CONTACT_CONFIRMATION_SUBJECT,
-          renderContactConfirmationEmail(message),
-          renderContactConfirmationText(message),
+          isEnglish
+            ? CONTACT_CONFIRMATION_EN_SUBJECT
+            : CONTACT_CONFIRMATION_SUBJECT,
+          isEnglish
+            ? renderContactConfirmationEmailEn(message)
+            : renderContactConfirmationEmail(message),
+          isEnglish
+            ? renderContactConfirmationTextEn(message)
+            : renderContactConfirmationText(message),
         ),
       ),
       this.sendAndRecord(message.id, 'adminEmailSentAt', () =>
         this.emailService.sendEmail(
           this.adminEmail,
-          CONTACT_NOTIFICATION_SUBJECT,
-          renderContactNotificationEmail(message),
-          renderContactNotificationText(message),
+          isEnglish
+            ? CONTACT_NOTIFICATION_EN_SUBJECT
+            : CONTACT_NOTIFICATION_SUBJECT,
+          isEnglish
+            ? renderContactNotificationEmailEn(message)
+            : renderContactNotificationEmail(message),
+          isEnglish
+            ? renderContactNotificationTextEn(message)
+            : renderContactNotificationText(message),
           message.email,
         ),
       ),

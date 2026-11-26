@@ -55,8 +55,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
       success: false,
       statusCode,
       message,
-      errors:
-        details.errors ?? (messages.length > 1 ? messages : undefined),
+      errors: details.errors ?? (messages.length > 1 ? messages : undefined),
       details: details.details,
       expectedColumns: details.expectedColumns,
       timestamp: new Date().toISOString(),

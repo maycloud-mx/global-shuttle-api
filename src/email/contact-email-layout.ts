@@ -2,6 +2,7 @@ const GLOBAL_SHUTTLE_LOGO_URL =
   'https://res.cloudinary.com/cwq9jx7i/image/upload/e_trim:10/c_pad,w_150,h_90,b_white/q_auto/v1791934562/LOGO_GLOBAL_SHUTTLE.png';
 
 interface ContactEmailLayoutData {
+  language?: 'es' | 'en';
   title: string;
   preheader: string;
   badge: string;
@@ -28,8 +29,11 @@ export function escapeHtml(value: string): string {
   );
 }
 
-export function formatContactDateTime(value: Date): string {
-  return new Intl.DateTimeFormat('es-MX', {
+export function formatContactDateTime(
+  value: Date,
+  language: 'es' | 'en' = 'es',
+): string {
+  return new Intl.DateTimeFormat(language === 'en' ? 'en-US' : 'es-MX', {
     day: '2-digit',
     month: 'long',
     year: 'numeric',
@@ -40,11 +44,9 @@ export function formatContactDateTime(value: Date): string {
   }).format(value);
 }
 
-export function renderContactEmailLayout(
-  data: ContactEmailLayoutData,
-): string {
+export function renderContactEmailLayout(data: ContactEmailLayoutData): string {
   return `<!doctype html>
-<html lang="es">
+<html lang="${data.language ?? 'es'}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -133,7 +135,7 @@ export function renderContactEmailLayout(
               <br>
               ${escapeHtml(data.footer)}
               <br>
-              Este es un correo generado automáticamente.
+              ${data.language === 'en' ? 'This email was generated automatically.' : 'Este es un correo generado automáticamente.'}
 
             </td>
           </tr>

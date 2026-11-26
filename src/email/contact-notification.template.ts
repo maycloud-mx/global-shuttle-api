@@ -4,8 +4,7 @@ import {
   renderContactEmailLayout,
 } from './contact-email-layout.js';
 
-const GLOBAL_SHUTTLE_ADMIN_URL =
-  'https://admin.globalshuttlecancun.com/';
+const GLOBAL_SHUTTLE_ADMIN_URL = 'https://admin.globalshuttlecancun.com/';
 
 export const CONTACT_NOTIFICATION_SUBJECT =
   'Nueva solicitud de contacto - Global Shuttle Cancún';
@@ -26,16 +25,11 @@ export function renderContactNotificationEmail(
   const name = escapeHtml(data.name);
   const email = escapeHtml(data.email);
 
-  const phone = escapeHtml(
-    data.phone?.trim() || 'No proporcionado',
-  );
+  const phone = escapeHtml(data.phone?.trim() || 'No proporcionado');
 
-  const comment = escapeHtml(data.comment)
-    .replace(/\r\n|\r|\n/g, '<br>');
+  const comment = escapeHtml(data.comment).replace(/\r\n|\r|\n/g, '<br>');
 
-  const createdAt = escapeHtml(
-    formatContactDateTime(data.createdAt),
-  );
+  const createdAt = escapeHtml(formatContactDateTime(data.createdAt));
 
   const content = `
 
@@ -198,8 +192,7 @@ export function renderContactNotificationEmail(
 export function renderContactNotificationText(
   data: ContactNotificationTemplateData,
 ): string {
-  const phone =
-    data.phone?.trim() || 'No proporcionado';
+  const phone = data.phone?.trim() || 'No proporcionado';
 
   return `GLOBAL SHUTTLE CANCÚN
 

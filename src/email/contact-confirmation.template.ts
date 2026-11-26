@@ -3,8 +3,7 @@ import {
   renderContactEmailLayout,
 } from './contact-email-layout.js';
 
-const GLOBAL_SHUTTLE_WEBSITE =
-  'https://globalshuttlecancun.com/';
+const GLOBAL_SHUTTLE_WEBSITE = 'https://globalshuttlecancun.com/';
 
 export const CONTACT_CONFIRMATION_SUBJECT =
   'Hemos recibido su mensaje - Global Shuttle Cancún';

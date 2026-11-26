@@ -1,13 +1,19 @@
 import { Transform } from 'class-transformer';
 import {
   IsEmail,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
   MaxLength,
+  ValidateIf,
 } from 'class-validator';
 
 export class CreateContactMessageDto {
+  @ValidateIf((_, value: unknown) => value !== undefined)
+  @IsIn(['es', 'en'])
+  language?: 'es' | 'en';
+
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @IsNotEmpty()
